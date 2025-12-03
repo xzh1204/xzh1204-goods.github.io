@@ -1,0 +1,573 @@
+/* style.css - 货品管理账本样式 */
+:root {
+    --primary-color: #4361ee;
+    --primary-dark: #3a56d4;
+    --secondary-color: #7209b7;
+    --success-color: #4cc9f0;
+    --danger-color: #f72585;
+    --warning-color: #f8961e;
+    --light-color: #f8f9fa;
+    --dark-color: #212529;
+    --gray-color: #6c757d;
+    --light-gray: #e9ecef;
+    --border-radius: 12px;
+    --box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    --transition: all 0.3s ease;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+}
+
+body {
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    color: var(--dark-color);
+    line-height: 1.6;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    background: white;
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+    padding: 25px;
+    position: relative;
+    overflow: hidden;
+}
+
+/* 头部样式 */
+header {
+    text-align: center;
+    margin-bottom: 30px;
+    padding-bottom: 20px;
+    border-bottom: 2px solid var(--light-gray);
+}
+
+h1 {
+    color: var(--primary-color);
+    font-size: 1.8rem;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.subtitle {
+    color: var(--gray-color);
+    font-size: 0.95rem;
+}
+
+/* 角色切换 */
+.role-switch {
+    display: flex;
+    background: var(--light-gray);
+    border-radius: 50px;
+    padding: 5px;
+    margin-bottom: 30px;
+    border: 1px solid #dee2e6;
+}
+
+.role-btn {
+    flex: 1;
+    padding: 14px 20px;
+    border: none;
+    background: transparent;
+    border-radius: 50px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    color: var(--gray-color);
+}
+
+.role-btn.active {
+    background: white;
+    color: var(--primary-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.role-btn:hover:not(.active) {
+    background: rgba(255, 255, 255, 0.5);
+}
+
+/* 表单区域 */
+.form-section {
+    display: none;
+}
+
+.form-section.active {
+    display: block;
+    animation: fadeIn 0.5s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.section-header {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--primary-color);
+    margin: 25px 0 15px 0;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--light-gray);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* 输入组 */
+.input-group {
+    margin-bottom: 20px;
+}
+
+label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: #495057;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+input, select, textarea {
+    width: 100%;
+    padding: 14px 16px;
+    border: 1px solid #ced4da;
+    border-radius: 10px;
+    font-size: 16px;
+    transition: var(--transition);
+    background: white;
+}
+
+input:focus, select:focus, textarea:focus {
+    border-color: var(--primary-color);
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.15);
+}
+
+textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+/* 计算字段样式 */
+.calculated-field, .profit-field {
+    background-color: #f8f9fa !important;
+    font-weight: 600;
+    color: var(--dark-color);
+}
+
+.profit-field.positive {
+    color: #2ecc71;
+    font-weight: 700;
+}
+
+.profit-field.negative {
+    color: #e74c3c;
+    font-weight: 700;
+}
+
+/* 行布局 */
+.row {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.row .input-group {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+/* 运费计算器 */
+.calc-box {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.calc-box input {
+    flex: 2;
+}
+
+.calc-btn {
+    flex: 1;
+    padding: 14px;
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.calc-btn:hover {
+    background: var(--primary-dark);
+    transform: translateY(-2px);
+}
+
+/* 按钮组 */
+.btn-group {
+    display: flex;
+    gap: 15px;
+    margin: 30px 0 20px 0;
+}
+
+.btn {
+    flex: 1;
+    padding: 16px;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    color: white;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 15px rgba(67, 97, 238, 0.3);
+}
+
+.btn-secondary {
+    background: var(--light-gray);
+    color: var(--dark-color);
+}
+
+.btn-secondary:hover {
+    background: #dee2e6;
+    transform: translateY(-2px);
+}
+
+.icon-btn {
+    background: transparent;
+    border: none;
+    color: var(--primary-color);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 8px;
+    transition: var(--transition);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.icon-btn:hover {
+    background: var(--light-gray);
+}
+
+/* 消息框 */
+.message-box {
+    padding: 15px;
+    border-radius: 10px;
+    margin: 20px 0;
+    text-align: center;
+    font-weight: 500;
+}
+
+.message-box.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+}
+
+.message-box.error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+}
+
+/* 记录查看区域 */
+.stats-bar {
+    display: flex;
+    justify-content: space-between;
+    background: var(--light-gray);
+    padding: 12px 20px;
+    border-radius: 10px;
+    margin: 15px 0;
+    font-weight: 600;
+}
+
+#totalProfit {
+    color: var(--primary-color);
+}
+
+#recordsContainer {
+    min-height: 300px;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 50px 20px;
+    color: var(--gray-color);
+}
+
+.empty-state i {
+    margin-bottom: 20px;
+    color: #adb5bd;
+}
+
+.hint {
+    font-size: 0.9rem;
+    color: #adb5bd;
+    margin-top: 10px;
+}
+
+/* 记录项 */
+.record-item {
+    background: white;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 15px;
+    transition: var(--transition);
+    position: relative;
+    overflow: hidden;
+}
+
+.record-item:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.record-item.sold {
+    border-left: 5px solid var(--success-color);
+}
+
+.record-item.returned {
+    border-left: 5px solid var(--warning-color);
+}
+
+.record-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #f1f3f5;
+}
+
+.record-title {
+    font-weight: 700;
+    color: var(--dark-color);
+    font-size: 1.1rem;
+}
+
+.record-status {
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+.record-status.sold {
+    background: #d4edda;
+    color: #155724;
+}
+
+.record-status.unsold {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.record-status.returned {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.record-body {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 15px;
+}
+
+.record-field {
+    font-size: 0.95rem;
+}
+
+.record-label {
+    font-weight: 600;
+    color: var(--gray-color);
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.85rem;
+}
+
+.record-value {
+    color: var(--dark-color);
+    font-weight: 500;
+}
+
+.record-profit {
+    font-weight: 700;
+    font-size: 1.1rem;
+}
+
+.record-profit.positive {
+    color: #27ae60;
+}
+
+.record-profit.negative {
+    color: #e74c3c;
+}
+
+.record-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px dashed #e9ecef;
+    font-size: 0.9rem;
+    color: var(--gray-color);
+}
+
+/* 筛选面板 */
+.filter-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 320px;
+    background: white;
+    box-shadow: -5px 0 25px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    padding: 25px;
+    overflow-y: auto;
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+}
+
+.filter-panel.active {
+    transform: translateX(0);
+}
+
+.filter-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid var(--light-gray);
+}
+
+.filter-body {
+    margin-bottom: 25px;
+}
+
+.filter-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 25px;
+}
+
+/* 导出操作 */
+.export-actions {
+    display: flex;
+    gap: 15px;
+    margin-top: 25px;
+}
+
+/* 页脚 */
+footer {
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid var(--light-gray);
+    text-align: center;
+}
+
+.footer-note {
+    color: var(--gray-color);
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.footer-hint {
+    color: #adb5bd;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .container {
+        padding: 20px;
+    }
+    
+    .row {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .record-body {
+        grid-template-columns: 1fr;
+    }
+    
+    .btn-group {
+        flex-direction: column;
+    }
+    
+    .role-btn {
+        padding: 12px 15px;
+        font-size: 0.95rem;
+    }
+    
+    .filter-panel {
+        width: 100%;
+    }
+}
+
+@media (max-width: 480px) {
+    h1 {
+        font-size: 1.5rem;
+    }
+    
+    .section-header {
+        font-size: 1rem;
+    }
+    
+    input, select, textarea {
+        padding: 12px 14px;
+    }
+    
+    .stats-bar {
+        flex-direction: column;
+        gap: 8px;
+        text-align: center;
+    }
+}

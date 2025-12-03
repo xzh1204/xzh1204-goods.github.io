@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>货品管理账本</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1><i class="fas fa-boxes"></i> 货品管理账本</h1>
+            <p class="subtitle">合伙人提交 · 记账人查看 · 实时云端同步</p>
+        </header>
+
+        <!-- 角色切换 -->
+        <div class="role-switch">
+            <button class="role-btn active" id="roleSubmitBtn">
+                <i class="fas fa-user-edit"></i> 我是合伙人（提交）
+            </button>
+            <button class="role-btn" id="roleViewBtn">
+                <i class="fas fa-chart-line"></i> 我是记账人（查看）
+            </button>
+        </div>
+
+        <!-- 合伙人提交表单 -->
+        <div id="submitForm" class="form-section active">
+            <form id="goodsForm">
+                <!-- 基础信息 -->
+                <div class="section-header">
+                    <i class="fas fa-info-circle"></i> 基础信息
+                </div>
+                
+                <div class="input-group">
+                    <label for="goodsId"><i class="fas fa-barcode"></i> 货号 *</label>
+                    <input type="text" id="goodsId" placeholder="例如: AB12345" required>
+                </div>
+                
+                <div class="row">
+                    <div class="input-group">
+                        <label for="unitPrice"><i class="fas fa-tag"></i> 拿货单价 (元) *</label>
+                        <input type="number" id="unitPrice" min="0" step="0.01" placeholder="0.00" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="quantity"><i class="fas fa-cubes"></i> 数量 *</label>
+                        <input type="number" id="quantity" min="1" value="1" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="totalCost"><i class="fas fa-calculator"></i> 拿货总价 (元)</label>
+                        <input type="text" id="totalCost" readonly class="calculated-field">
+                    </div>
+                </div>
+                
+                <!-- 货品状态 -->
+                <div class="input-group">
+                    <label for="status"><i class="fas fa-exchange-alt"></i> 货品状态 *</label>
+                    <select id="status" required>
+                        <option value="已上架未卖出">已上架未卖出</option>
+                        <option value="被退回（有瑕疵等）">被退回（有瑕疵等）</option>
+                        <option value="已下架">已下架</option>
+                        <option value="已卖出（退款）未到账">已卖出（退款）未到账</option>
+                        <option value="已卖出（退款）已到账">已卖出（退款）已到账</option>
+                    </select>
+                </div>
+                
+                <!-- 运费信息 -->
+                <div class="section-header">
+                    <i class="fas fa-shipping-fast"></i> 运费信息
+                </div>
+                
+                <div class="input-group">
+                    <label for="shippingExpr"><i class="fas fa-calculator"></i> 运费 (元) - 可输入算式</label>
+                    <div class="calc-box">
+                        <input type="text" id="shippingExpr" placeholder="例如: 8 或 3.68+3.68">
+                        <button type="button" id="calcShippingBtn" class="calc-btn">
+                            <i class="fas fa-equals"></i> 计算
+                        </button>
+                    </div>
+                    <input type="hidden" id="shippingFee">
+                </div>
+                
+                <div class="input-group">
+                    <label for="shippingNote"><i class="fas fa-sticky-note"></i> 运费备注 (写明组成)</label>
+                    <textarea id="shippingNote" rows="2" placeholder="例如: 申通快递 8元 + 包装费 0.5元"></textarea>
+                </div>
+                
+                <!-- 动态收入与利润部分 -->
+                <div id="incomeSection" class="dynamic-section" style="display: none;">
+                    <div class="section-header">
+                        <i class="fas fa-money-bill-wave"></i> 收入与利润
+                    </div>
+                    
+                    <div class="input-group">
+                        <label for="actualIncome"><i class="fas fa-wallet"></i> 实际收入/退款 (元) *</label>
+                        <input type="number" id="actualIncome" min="0" step="0.01" placeholder="0.00">
+                    </div>
+                    
+                    <div class="input-group">
+                        <label><i class="fas fa-chart-bar"></i> 利润 (元)</label>
+                        <input type="text" id="profitDisplay" readonly class="profit-field">
+                    </div>
+                </div>
+                
+                <!-- 提交人信息 -->
+                <div class="input-group">
+                    <label for="submitter"><i class="fas fa-user"></i> 提交人 *</label>
+                    <input type="text" id="submitter" placeholder="请输入您的称呼" required>
+                </div>
+                
+                <!-- 操作按钮 -->
+                <div class="btn-group">
+                    <button type="submit" id="submitBtn" class="btn btn-primary">
+                        <i class="fas fa-paper-plane"></i> 提交记录
+                    </button>
+                    <button type="button" id="resetBtn" class="btn btn-secondary">
+                        <i class="fas fa-redo"></i> 清空重填
+                    </button>
+                </div>
+                
+                <!-- 消息提示 -->
+                <div id="formMessage" class="message-box" style="display: none;"></div>
+            </form>
+        </div>
+
+        <!-- 记账人查看记录 -->
+        <div id="viewRecords" class="form-section">
+            <div class="section-header">
+                <i class="fas fa-database"></i> 所有记录
+                <button id="refreshBtn" class="icon-btn">
+                    <i class="fas fa-sync-alt"></i> 刷新
+                </button>
+            </div>
+            
+            <div id="statsBar" class="stats-bar">
+                <span id="totalCount">共 0 条记录</span>
+                <span id="totalProfit">总利润: 0.00 元</span>
+            </div>
+            
+            <div id="recordsContainer">
+                <div id="recordsList">
+                    <!-- 记录将动态插入到这里 -->
+                </div>
+                <div id="emptyMessage" class="empty-state">
+                    <i class="fas fa-clipboard-list fa-3x"></i>
+                    <p>暂无记录</p>
+                    <p class="hint">切换到"合伙人"角色提交第一条记录</p>
+                </div>
+            </div>
+            
+            <div class="export-actions">
+                <button id="copyAllBtn" class="btn btn-secondary">
+                    <i class="fas fa-copy"></i> 复制所有数据
+                </button>
+                <button id="filterBtn" class="btn btn-secondary">
+                    <i class="fas fa-filter"></i> 筛选记录
+                </button>
+            </div>
+        </div>
+
+        <!-- 筛选面板 -->
+        <div id="filterPanel" class="filter-panel" style="display: none;">
+            <div class="filter-header">
+                <h3><i class="fas fa-filter"></i> 筛选条件</h3>
+                <button id="closeFilterBtn" class="icon-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="filter-body">
+                <div class="input-group">
+                    <label>货号包含</label>
+                    <input type="text" id="filterGoodsId" placeholder="输入货号关键词">
+                </div>
+                <div class="input-group">
+                    <label>状态</label>
+                    <select id="filterStatus">
+                        <option value="">全部状态</option>
+                        <option value="已上架未卖出">已上架未卖出</option>
+                        <option value="被退回（有瑕疵等）">被退回</option>
+                        <option value="已下架">已下架</option>
+                        <option value="已卖出（退款）未到账">已卖出未到账</option>
+                        <option value="已卖出（退款）已到账">已卖出已到账</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>提交人</label>
+                    <input type="text" id="filterSubmitter" placeholder="输入提交人">
+                </div>
+                <div class="filter-actions">
+                    <button id="applyFilterBtn" class="btn btn-primary">应用筛选</button>
+                    <button id="clearFilterBtn" class="btn btn-secondary">清除筛选</button>
+                </div>
+            </div>
+        </div>
+
+        <footer>
+            <p class="footer-note">
+                <i class="fas fa-cloud"></i> 数据实时保存至云端数据库 | 
+                <span id="lastSync">上次同步: --:--:--</span>
+            </p>
+            <p class="footer-hint">
+                <i class="fas fa-mobile-alt"></i> 手机电脑均可使用 | 建议收藏此页面
+            </p>
+        </footer>
+    </div>
+
+    <!-- 配置Supabase - 请在部署前修改 -->
+    <script>
+        // ========== 重要配置 ==========
+        // 请先创建Supabase项目，然后替换下面的URL和密钥
+        const SUPABASE_CONFIG = {
+            url: ' https://gbsqrtaooovsxnwftkbk.supabase.co', // 替换为你的Supabase URL
+            key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdic3FydGFvb292c3hud2Z0a2JrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ3NjM3ODcsImV4cCI6MjA4MDMzOTc4N30.FKUrAR1qr5bSNEJMomU24aYFDK-fep3eNjZY1n8QgN4' // 替换为你的anon public密钥
+        };
+        // ========== 配置结束 ==========
+        
+        // 初始化Supabase客户端
+        window.supabaseClient = window.supabase.createClient(
+            SUPABASE_CONFIG.url, 
+            SUPABASE_CONFIG.key
+        );
+    </script>
+    
+    <script src="script.js"></script>
+</body>
+</html>
