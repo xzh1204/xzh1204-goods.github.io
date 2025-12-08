@@ -3,44 +3,70 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>货品管理账本</title>
+    <title>货品管理账本 - 专业版</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="style.css">
     <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1><i class="fas fa-boxes"></i> 货品管理账本</h1>
-            <p class="subtitle">合伙人提交 · 记账人查看 · 实时云端同步</p>
+            <h1><i class="fas fa-boxes"></i> 货品管理账本 - 专业版</h1>
+            <p class="subtitle">智能填充 | 时间分类 | 状态更新 | 合伙人协作</p>
         </header>
 
         <!-- 角色切换 -->
         <div class="role-switch">
             <button class="role-btn active" id="roleSubmitBtn">
-                <i class="fas fa-user-edit"></i> 我是合伙人（提交）
+                <i class="fas fa-user-edit"></i> 我是合伙人（提交/更新）
             </button>
             <button class="role-btn" id="roleViewBtn">
-                <i class="fas fa-chart-line"></i> 我是记账人（查看）
+                <i class="fas fa-chart-line"></i> 我是记账人（查看/分析）
             </button>
         </div>
 
         <!-- 合伙人提交表单 -->
         <div id="submitForm" class="form-section active">
+            <div class="form-mode-switch">
+                <button class="mode-btn active" id="modeNew">新建记录</button>
+                <button class="mode-btn" id="modeUpdate">更新状态</button>
+            </div>
+            
             <form id="goodsForm">
+                <!-- 货号搜索与选择 -->
+                <div class="input-group">
+                    <label for="goodsIdSearch"><i class="fas fa-search"></i> 搜索或输入货号</label>
+                    <div class="search-container">
+                        <input type="text" id="goodsIdSearch" placeholder="输入货号搜索或输入新货号" list="goodsList">
+                        <datalist id="goodsList"></datalist>
+                        <button type="button" id="searchGoodsBtn" class="search-btn">
+                            <i class="fas fa-search"></i> 搜索
+                        </button>
+                    </div>
+                    <div class="hint">输入已有货号自动填充信息，或输入新货号创建记录</div>
+                </div>
+                
                 <!-- 基础信息 -->
                 <div class="section-header">
                     <i class="fas fa-info-circle"></i> 基础信息
                 </div>
                 
-                <div class="input-group">
-                    <label for="goodsId"><i class="fas fa-barcode"></i> 货号 *</label>
-                    <input type="text" id="goodsId" placeholder="例如: AB12345" required>
+                <div class="row">
+                    <div class="input-group">
+                        <label for="goodsId"><i class="fas fa-barcode"></i> 货号 *</label>
+                        <input type="text" id="goodsId" placeholder="自动填充或输入新货号" required readonly>
+                    </div>
+                    <div class="input-group">
+                        <label for="goodsName"><i class="fas fa-tag"></i> 商品名称</label>
+                        <input type="text" id="goodsName" placeholder="自动填充">
+                    </div>
                 </div>
                 
                 <div class="row">
                     <div class="input-group">
-                        <label for="unitPrice"><i class="fas fa-tag"></i> 拿货单价 (元) *</label>
+                        <label for="unitPrice"><i class="fas fa-yen-sign"></i> 拿货单价 (元) *</label>
                         <input type="number" id="unitPrice" min="0" step="0.01" placeholder="0.00" required>
                     </div>
                     <div class="input-group">
@@ -57,6 +83,7 @@
                 <div class="input-group">
                     <label for="status"><i class="fas fa-exchange-alt"></i> 货品状态 *</label>
                     <select id="status" required>
+                        <option value="">请选择状态</option>
                         <option value="已上架未卖出">已上架未卖出</option>
                         <option value="被退回（有瑕疵等）">被退回（有瑕疵等）</option>
                         <option value="已下架">已下架</option>
@@ -109,6 +136,12 @@
                     <input type="text" id="submitter" placeholder="请输入您的称呼" required>
                 </div>
                 
+                <!-- 备注 -->
+                <div class="input-group">
+                    <label for="remark"><i class="fas fa-comment"></i> 备注</label>
+                    <textarea id="remark" rows="2" placeholder="可填写本次更新的特殊说明"></textarea>
+                </div>
+                
                 <!-- 操作按钮 -->
                 <div class="btn-group">
                     <button type="submit" id="submitBtn" class="btn btn-primary">
@@ -116,6 +149,9 @@
                     </button>
                     <button type="button" id="resetBtn" class="btn btn-secondary">
                         <i class="fas fa-redo"></i> 清空重填
+                    </button>
+                    <button type="button" id="saveTemplateBtn" class="btn btn-secondary">
+                        <i class="fas fa-save"></i> 保存为模板
                     </button>
                 </div>
                 
@@ -126,18 +162,94 @@
 
         <!-- 记账人查看记录 -->
         <div id="viewRecords" class="form-section">
+            <div class="view-controls">
+                <div class="section-header">
+                    <i class="fas fa-database"></i> 货品记录总览
+                    <button id="refreshBtn" class="icon-btn">
+                        <i class="fas fa-sync-alt"></i> 刷新
+                    </button>
+                </div>
+                
+                <!-- 时间筛选 -->
+                <div class="filter-row">
+                    <div class="time-filter">
+                        <button class="time-btn active" data-period="all">全部</button>
+                        <button class="time-btn" data-period="today">今天</button>
+                        <button class="time-btn" data-period="week">本周</button>
+                        <button class="time-btn" data-period="month">本月</button>
+                        <button class="time-btn" data-period="year">本年</button>
+                    </div>
+                    
+                    <div class="date-range">
+                        <input type="text" id="startDate" placeholder="开始日期" class="date-input">
+                        <span>至</span>
+                        <input type="text" id="endDate" placeholder="结束日期" class="date-input">
+                        <button id="applyDateRange" class="icon-btn">
+                            <i class="fas fa-check"></i> 应用
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- 高级筛选 -->
+                <div class="advanced-filters">
+                    <div class="filter-group">
+                        <input type="text" id="filterGoodsId" placeholder="货号筛选" class="filter-input">
+                        <select id="filterStatus" class="filter-select">
+                            <option value="">所有状态</option>
+                            <option value="已上架未卖出">已上架未卖出</option>
+                            <option value="被退回（有瑕疵等）">被退回</option>
+                            <option value="已下架">已下架</option>
+                            <option value="已卖出（退款）未到账">已卖出未到账</option>
+                            <option value="已卖出（退款）已到账">已卖出已到账</option>
+                        </select>
+                        <input type="text" id="filterSubmitter" placeholder="提交人筛选" class="filter-input">
+                        <button id="clearFilters" class="icon-btn">
+                            <i class="fas fa-times"></i> 清除
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 统计卡片 -->
+            <div id="statsCards" class="stats-cards">
+                <div class="stat-card">
+                    <div class="stat-value" id="totalRecords">0</div>
+                    <div class="stat-label">总记录数</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalProfitSum">0.00</div>
+                    <div class="stat-label">总利润(元)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalCostSum">0.00</div>
+                    <div class="stat-label">总成本(元)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="avgProfitRate">0%</div>
+                    <div class="stat-label">平均利润率</div>
+                </div>
+            </div>
+            
+            <!-- 月度统计图表 -->
             <div class="section-header">
-                <i class="fas fa-database"></i> 所有记录
-                <button id="refreshBtn" class="icon-btn">
-                    <i class="fas fa-sync-alt"></i> 刷新
-                </button>
+                <i class="fas fa-chart-bar"></i> 月度统计
+                <select id="monthSelector" class="month-select">
+                    <!-- 月份选项将通过JS动态生成 -->
+                </select>
             </div>
             
-            <div id="statsBar" class="stats-bar">
-                <span id="totalCount">共 0 条记录</span>
-                <span id="totalProfit">总利润: 0.00 元</span>
+            <div id="monthlyStats" class="monthly-stats">
+                <!-- 月度统计数据将动态插入 -->
             </div>
             
+            <!-- 货号分组视图 -->
+            <div class="view-tabs">
+                <button class="view-tab active" data-view="timeline">时间线视图</button>
+                <button class="view-tab" data-view="byGoods">按货号分组</button>
+                <button class="view-tab" data-view="byMonth">按月汇总</button>
+            </div>
+            
+            <!-- 记录容器 -->
             <div id="recordsContainer">
                 <div id="recordsList">
                     <!-- 记录将动态插入到这里 -->
@@ -149,69 +261,69 @@
                 </div>
             </div>
             
+            <!-- 分页控件 -->
+            <div class="pagination" id="pagination">
+                <button id="prevPage" class="page-btn"><i class="fas fa-chevron-left"></i></button>
+                <span id="pageInfo">第 1 页 / 共 1 页</span>
+                <button id="nextPage" class="page-btn"><i class="fas fa-chevron-right"></i></button>
+            </div>
+            
+            <!-- 导出操作 -->
             <div class="export-actions">
                 <button id="copyAllBtn" class="btn btn-secondary">
-                    <i class="fas fa-copy"></i> 复制所有数据
+                    <i class="fas fa-copy"></i> 复制数据
                 </button>
-                <button id="filterBtn" class="btn btn-secondary">
-                    <i class="fas fa-filter"></i> 筛选记录
+                <button id="exportExcelBtn" class="btn btn-secondary">
+                    <i class="fas fa-file-excel"></i> 导出Excel
+                </button>
+                <button id="printBtn" class="btn btn-secondary">
+                    <i class="fas fa-print"></i> 打印
+                </button>
+            </div>
+            
+            <!-- 批量操作 -->
+            <div class="batch-actions">
+                <button id="batchDeleteBtn" class="btn btn-danger" style="display: none;">
+                    <i class="fas fa-trash"></i> 批量删除
                 </button>
             </div>
         </div>
 
-        <!-- 筛选面板 -->
-        <div id="filterPanel" class="filter-panel" style="display: none;">
-            <div class="filter-header">
-                <h3><i class="fas fa-filter"></i> 筛选条件</h3>
-                <button id="closeFilterBtn" class="icon-btn">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="filter-body">
-                <div class="input-group">
-                    <label>货号包含</label>
-                    <input type="text" id="filterGoodsId" placeholder="输入货号关键词">
+        <!-- 货号详情模态框 -->
+        <div id="goodsDetailModal" class="modal" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3><i class="fas fa-box"></i> 货号详情: <span id="modalGoodsId"></span></h3>
+                    <button class="modal-close">&times;</button>
                 </div>
-                <div class="input-group">
-                    <label>状态</label>
-                    <select id="filterStatus">
-                        <option value="">全部状态</option>
-                        <option value="已上架未卖出">已上架未卖出</option>
-                        <option value="被退回（有瑕疵等）">被退回</option>
-                        <option value="已下架">已下架</option>
-                        <option value="已卖出（退款）未到账">已卖出未到账</option>
-                        <option value="已卖出（退款）已到账">已卖出已到账</option>
-                    </select>
-                </div>
-                <div class="input-group">
-                    <label>提交人</label>
-                    <input type="text" id="filterSubmitter" placeholder="输入提交人">
-                </div>
-                <div class="filter-actions">
-                    <button id="applyFilterBtn" class="btn btn-primary">应用筛选</button>
-                    <button id="clearFilterBtn" class="btn btn-secondary">清除筛选</button>
+                <div class="modal-body">
+                    <div id="goodsHistory">
+                        <!-- 货号历史记录将动态插入 -->
+                    </div>
                 </div>
             </div>
         </div>
 
         <footer>
             <p class="footer-note">
-                <i class="fas fa-cloud"></i> 数据实时保存至云端数据库 | 
+                <i class="fas fa-cloud"></i> 数据实时同步 | 智能分类 | 状态追踪 |
                 <span id="lastSync">上次同步: --:--:--</span>
             </p>
             <p class="footer-hint">
-                <i class="fas fa-mobile-alt"></i> 手机电脑均可使用 | 建议收藏此页面
+                <i class="fas fa-lightbulb"></i> 提示：输入已有货号可自动填充信息，支持状态更新
             </p>
         </footer>
     </div>
 
-    <!-- 配置Supabase - 请在部署前修改 -->
+    <!-- 遮罩层 -->
+    <div id="overlay" class="overlay" style="display: none;"></div>
+
+    <!-- 配置Supabase -->
     <script>
         // ========== 重要配置 ==========
-        // 请先创建Supabase项目，然后替换下面的URL和密钥
         const SUPABASE_CONFIG = {
-            url: ' https://gbsqrtaooovsxnwftkbk.supabase.co', // 替换为你的Supabase URL
-            key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdic3FydGFvb292c3hud2Z0a2JrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ3NjM3ODcsImV4cCI6MjA4MDMzOTc4N30.FKUrAR1qr5bSNEJMomU24aYFDK-fep3eNjZY1n8QgN4' // 替换为你的anon public密钥
+            url: 'https://xxxxxxxxxxxxxx.supabase.co', // 替换为你的Supabase URL
+            key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.xxxx' // 替换为你的anon public密钥
         };
         // ========== 配置结束 ==========
         
