@@ -26,8 +26,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // 初始化应用
 function initApp() {
+    console.log('🚀 应用初始化开始');
+    
     // 获取Supabase客户端
     supabase = window.supabaseClient;
+    console.log('Supabase客户端已初始化');
+    
+    // 测试连接
+    testSupabaseConnection();
     
     // 初始化日期选择器
     initDatePickers();
@@ -52,6 +58,27 @@ function initApp() {
     
     // 检查URL参数
     checkUrlParams();
+}
+
+// 测试Supabase连接
+async function testSupabaseConnection() {
+    console.log('🔍 测试Supabase连接...');
+    
+    try {
+        const { data, error } = await supabase
+            .from('goods_records')
+            .select('count(*)')
+            .limit(1);
+            
+        if (error) {
+            console.error('❌ Supabase连接失败:', error);
+            showMessage('数据库连接失败，请检查配置', 'error');
+        } else {
+            console.log('✅ Supabase连接成功');
+        }
+    } catch (err) {
+        console.error('❌ 连接测试异常:', err);
+    }
 }
 
 // 初始化日期选择器
@@ -91,7 +118,10 @@ function initEventListeners() {
     // 表单相关
     document.getElementById('goodsForm').addEventListener('submit', handleFormSubmit);
     document.getElementById('resetBtn').addEventListener('click', resetForm);
-    document.getElementById('calcShippingBtn').addEventListener('click', calculateShipping);
+    
+    // 修改点2：运费自动计算（移除按钮，添加输入监听）
+    document.getElementById('shippingExpr').addEventListener('input', calculateShipping);
+    
     document.getElementById('saveTemplateBtn').addEventListener('click', saveGoodsTemplate);
     
     // 查看记录相关
@@ -206,7 +236,7 @@ function updateGoodsList(searchTerm) {
     matchedGoods.forEach(goodsId => {
         const option = document.createElement('option');
         option.value = goodsId;
-        option.textContent = `${goodsId} - ${goodsTemplates[goodsId].name || '未命名'}`;
+        option.textContent = `${goodsId} - ${goodsTemplates[goodsId].size || '未记录尺码'}`;
         goodsList.appendChild(option);
     });
 }
@@ -239,8 +269,8 @@ function searchGoods() {
     } else {
         // 新建模式，设置货号
         document.getElementById('goodsId').value = searchValue;
-        document.getElementById('goodsName').value = '';
-        showMessage('未找到该货号的模板，请输入商品名称', 'info');
+        document.getElementById('goodsSize').value = '';
+        showMessage('未找到该货号的模板，请输入尺码/款式', 'info');
     }
 }
 
@@ -272,7 +302,7 @@ function searchGoodsInDatabase(goodsId) {
 function fillFormFromTemplate(goodsId) {
     const template = goodsTemplates[goodsId];
     document.getElementById('goodsId').value = goodsId;
-    document.getElementById('goodsName').value = template.name || '';
+    document.getElementById('goodsSize').value = template.size || ''; // 修改点1：改为尺码/款式
     document.getElementById('unitPrice').value = template.unit_price || '';
     document.getElementById('shippingExpr').value = template.shipping_fee || '';
     document.getElementById('shippingNote').value = template.shipping_note || '';
@@ -290,7 +320,8 @@ function fillFormFromTemplate(goodsId) {
 
 function fillFormFromRecord(record) {
     document.getElementById('goodsId').value = record.goods_id;
-    document.getElementById('goodsName').value = record.goods_name || '';
+    // 修改点1：商品名称改为尺码/款式
+    document.getElementById('goodsSize').value = record.goods_name || '';
     document.getElementById('unitPrice').value = record.unit_price || '';
     document.getElementById('quantity').value = record.quantity || 1;
     document.getElementById('shippingExpr').value = record.shipping_fee || '';
@@ -334,17 +365,26 @@ function initFormCalculations() {
     calculateTotalCost();
 }
 
-// 运费计算
+// 运费计算 - 修改点2：自动计算，无需按钮
 function calculateShipping() {
     const shippingExpr = document.getElementById('shippingExpr');
     const shippingFeeInput = document.getElementById('shippingFee');
+    const calcHint = document.getElementById('shippingCalcHint');
+    
+    const inputValue = shippingExpr.value.trim();
+    
+    if (!inputValue) {
+        shippingFeeInput.value = '0';
+        calcHint.textContent = '请输入运费数字或算式';
+        calcHint.style.color = '#6c757d';
+        return;
+    }
     
     try {
         // 安全计算表达式
-        const expr = shippingExpr.value.replace(/[^0-9+\-*/().]/g, '');
+        const expr = inputValue.replace(/[^0-9+\-*/().\s]/g, '');
         if (!expr) {
-            shippingFeeInput.value = '0';
-            return;
+            throw new Error('无效输入');
         }
         
         const result = Function('"use strict"; return (' + expr + ')')();
@@ -355,16 +395,25 @@ function calculateShipping() {
         
         const roundedResult = parseFloat(result.toFixed(2));
         shippingFeeInput.value = roundedResult;
-        shippingExpr.value = roundedResult.toFixed(2);
+        
+        // 如果输入的是算式，显示计算结果提示
+        if (inputValue.includes('+') || inputValue.includes('-') || 
+            inputValue.includes('*') || inputValue.includes('/')) {
+            calcHint.textContent = `计算结果: ${roundedResult.toFixed(2)} 元`;
+            calcHint.style.color = '#28a745';
+        } else {
+            calcHint.textContent = '输入有效';
+            calcHint.style.color = '#28a745';
+        }
         
         // 重新计算利润
         if (document.getElementById('incomeSection').style.display !== 'none') {
             calculateProfit();
         }
     } catch (error) {
-        showMessage('请输入有效的算式，如: 3.68+3.68', 'error');
-        shippingExpr.value = '';
-        shippingFeeInput.value = '';
+        shippingFeeInput.value = '0';
+        calcHint.textContent = '请输入有效的数字或算式（如: 3.68+3.68）';
+        calcHint.style.color = '#dc3545';
     }
 }
 
@@ -516,11 +565,12 @@ function collectFormData() {
         shippingFee = parseFloat(shippingExpr) || 0;
     }
     
-    const goodsName = document.getElementById('goodsName').value.trim();
+    // 修改点1：尺码/款式字段
+    const goodsSize = document.getElementById('goodsSize').value.trim();
     
     return {
         goods_id: document.getElementById('goodsId').value.trim(),
-        goods_name: goodsName || null,
+        goods_name: goodsSize || null, // 修改点1：改为尺码/款式
         unit_price: parseFloat(document.getElementById('unitPrice').value) || 0,
         quantity: parseInt(document.getElementById('quantity').value) || 1,
         total_cost: parseFloat(document.getElementById('totalCost').value) || 0,
@@ -535,12 +585,14 @@ function collectFormData() {
     };
 }
 
-// 提交到Supabase
+// 提交到Supabase - 简化版
 async function submitToSupabase(formData) {
     if (!supabase) {
         showMessage('❌ 数据库连接未初始化', 'error');
         return false;
     }
+    
+    console.log('正在提交数据到Supabase:', formData);
     
     try {
         const { data, error } = await supabase
@@ -549,7 +601,21 @@ async function submitToSupabase(formData) {
             .select();
         
         if (error) {
-            throw error;
+            console.error('Supabase提交错误:', error);
+            
+            let errorMsg = '提交失败: ';
+            if (error.code) errorMsg += `[${error.code}] `;
+            errorMsg += error.message;
+            
+            // 显示更详细的错误信息
+            if (error.code === '42501') {
+                errorMsg += '\n\n请检查Supabase RLS策略设置：\n1. 进入Supabase后台\n2. 找到Authentication → Policies\n3. 为goods_records表添加INSERT策略\n4. 或暂时关闭RLS';
+            } else if (error.message.includes('JWT')) {
+                errorMsg += '\n\n请检查Supabase配置：\n1. 确认URL和Key正确\n2. 使用anon public key\n3. 确认项目状态正常';
+            }
+            
+            alert(errorMsg);
+            return false;
         }
         
         console.log('数据提交成功:', data);
@@ -561,16 +627,8 @@ async function submitToSupabase(formData) {
         
         return true;
     } catch (error) {
-        console.error('Supabase提交错误:', error);
-        
-        if (error.message.includes('JWT')) {
-            showMessage('❌ 数据库认证失败，请检查API密钥配置', 'error');
-        } else if (error.message.includes('network')) {
-            showMessage('❌ 网络连接失败，请检查网络设置', 'error');
-        } else {
-            showMessage('❌ 提交失败: ' + error.message, 'error');
-        }
-        
+        console.error('提交异常:', error);
+        alert('网络错误: ' + error.message);
         return false;
     }
 }
@@ -580,7 +638,7 @@ function saveGoodsTemplateToLocal(formData) {
     if (!formData.goods_id) return;
     
     goodsTemplates[formData.goods_id] = {
-        name: formData.goods_name || '',
+        size: formData.goods_name || '', // 修改点1：改为尺码/款式
         unit_price: formData.unit_price,
         shipping_fee: formData.shipping_fee,
         shipping_note: formData.shipping_note,
@@ -599,19 +657,19 @@ function saveGoodsTemplate() {
         return;
     }
     
-    const goodsName = document.getElementById('goodsName').value.trim();
+    const goodsSize = document.getElementById('goodsSize').value.trim();
     const unitPrice = document.getElementById('unitPrice').value;
     const shippingExpr = document.getElementById('shippingExpr').value;
     const shippingNote = document.getElementById('shippingNote').value.trim();
     
-    if (!goodsName && !unitPrice && !shippingExpr && !shippingNote) {
+    if (!goodsSize && !unitPrice && !shippingExpr && !shippingNote) {
         showMessage('请至少填写一项信息以保存为模板', 'error');
         return;
     }
     
     saveGoodsTemplateToLocal({
         goods_id: goodsId,
-        goods_name: goodsName,
+        goods_name: goodsSize, // 修改点1：改为尺码/款式
         unit_price: parseFloat(unitPrice) || 0,
         shipping_fee: parseFloat(shippingExpr) || 0,
         shipping_note: shippingNote,
@@ -641,6 +699,8 @@ function resetForm() {
     document.getElementById('incomeSection').style.display = 'none';
     document.getElementById('goodsId').removeAttribute('readonly');
     document.getElementById('goodsId').value = '';
+    document.getElementById('shippingCalcHint').textContent = '输入后自动计算';
+    document.getElementById('shippingCalcHint').style.color = '#6c757d';
     
     // 触发总价计算
     document.getElementById('unitPrice').dispatchEvent(new Event('input'));
@@ -724,7 +784,7 @@ function updateGoodsTemplatesFromRecords() {
             new Date(record.created_at) > new Date(goodsTemplates[record.goods_id].updated_at || 0)) {
             
             goodsTemplates[record.goods_id] = {
-                name: record.goods_name || '',
+                size: record.goods_name || '', // 修改点1：改为尺码/款式
                 unit_price: record.unit_price,
                 shipping_fee: record.shipping_fee,
                 shipping_note: record.shipping_note,
@@ -958,244 +1018,6 @@ function displayTimelineRecords() {
     });
 }
 
-// 按货号分组视图
-function displayRecordsByGoods() {
-    const recordsList = document.getElementById('recordsList');
-    const emptyMessage = document.getElementById('emptyMessage');
-    const pagination = document.getElementById('pagination');
-    
-    if (!currentRecords || currentRecords.length === 0) {
-        recordsList.innerHTML = '';
-        emptyMessage.style.display = 'block';
-        pagination.style.display = 'none';
-        return;
-    }
-    
-    emptyMessage.style.display = 'none';
-    pagination.style.display = 'flex';
-    
-    // 按货号分组
-    const groupedByGoods = {};
-    currentRecords.forEach(record => {
-        if (!record.goods_id) return;
-        
-        if (!groupedByGoods[record.goods_id]) {
-            groupedByGoods[record.goods_id] = {
-                name: record.goods_name || record.goods_id,
-                records: [],
-                totalProfit: 0,
-                totalCost: 0,
-                lastStatus: record.status,
-                lastUpdate: record.created_at
-            };
-        }
-        
-        groupedByGoods[record.goods_id].records.push(record);
-        if (record.profit) {
-            groupedByGoods[record.goods_id].totalProfit += parseFloat(record.profit);
-        }
-        groupedByGoods[record.goods_id].totalCost += parseFloat(record.total_cost || 0);
-        
-        // 更新最后状态和更新时间
-        if (new Date(record.created_at) > new Date(groupedByGoods[record.goods_id].lastUpdate)) {
-            groupedByGoods[record.goods_id].lastStatus = record.status;
-            groupedByGoods[record.goods_id].lastUpdate = record.created_at;
-        }
-    });
-    
-    // 按货号排序
-    const sortedGoodsIds = Object.keys(groupedByGoods).sort();
-    
-    let html = '';
-    
-    sortedGoodsIds.forEach(goodsId => {
-        const goodsData = groupedByGoods[goodsId];
-        const records = goodsData.records.sort((a, b) => 
-            new Date(b.created_at) - new Date(a.created_at)
-        );
-        
-        html += `
-            <div class="goods-group">
-                <div class="goods-header">
-                    <div class="goods-title">
-                        <i class="fas fa-box"></i> ${goodsId}
-                        <span class="goods-name">${goodsData.name !== goodsId ? `(${goodsData.name})` : ''}</span>
-                    </div>
-                    <div class="goods-stats">
-                        <span class="stat-item">
-                            <i class="fas fa-history"></i> ${records.length} 次记录
-                        </span>
-                        <span class="stat-item">
-                            <i class="fas fa-money-bill-wave"></i> 总利润: ${goodsData.totalProfit.toFixed(2)} 元
-                        </span>
-                        <span class="stat-item status-${goodsData.lastStatus.includes('卖出') ? 'sold' : 'unsold'}">
-                            ${goodsData.lastStatus}
-                        </span>
-                        <button class="goods-detail-btn" data-goods-id="${goodsId}">
-                            <i class="fas fa-info-circle"></i> 详情
-                        </button>
-                    </div>
-                </div>
-                <div class="goods-records">
-        `;
-        
-        // 只显示最近3条记录
-        const recentRecords = records.slice(0, 3);
-        recentRecords.forEach(record => {
-            html += createRecordItemHTML(record, true);
-        });
-        
-        if (records.length > 3) {
-            html += `
-                <div class="more-records">
-                    <i class="fas fa-ellipsis-h"></i> 还有 ${records.length - 3} 条历史记录
-                </div>
-            `;
-        }
-        
-        html += `
-                </div>
-            </div>
-        `;
-    });
-    
-    recordsList.innerHTML = html;
-    
-    // 添加详情按钮事件
-    document.querySelectorAll('.goods-detail-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const goodsId = this.dataset.goodsId;
-            showGoodsDetailModal(goodsId);
-        });
-    });
-}
-
-// 按月汇总视图
-function displayRecordsByMonth() {
-    const recordsList = document.getElementById('recordsList');
-    const emptyMessage = document.getElementById('emptyMessage');
-    const pagination = document.getElementById('pagination');
-    
-    if (!currentRecords || currentRecords.length === 0) {
-        recordsList.innerHTML = '';
-        emptyMessage.style.display = 'block';
-        pagination.style.display = 'none';
-        return;
-    }
-    
-    emptyMessage.style.display = 'none';
-    pagination.style.display = 'none';
-    
-    // 按月分组
-    const groupedByMonth = {};
-    currentRecords.forEach(record => {
-        const date = new Date(record.created_at);
-        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        const monthName = `${date.getFullYear()}年${date.getMonth() + 1}月`;
-        
-        if (!groupedByMonth[monthKey]) {
-            groupedByMonth[monthKey] = {
-                name: monthName,
-                records: [],
-                totalProfit: 0,
-                totalCost: 0,
-                totalIncome: 0,
-                soldCount: 0,
-                unsoldCount: 0
-            };
-        }
-        
-        groupedByMonth[monthKey].records.push(record);
-        
-        if (record.profit) {
-            groupedByMonth[monthKey].totalProfit += parseFloat(record.profit);
-        }
-        
-        groupedByMonth[monthKey].totalCost += parseFloat(record.total_cost || 0);
-        
-        if (record.actual_income) {
-            groupedByMonth[monthKey].totalIncome += parseFloat(record.actual_income);
-        }
-        
-        if (record.status.includes('卖出')) {
-            groupedByMonth[monthKey].soldCount++;
-        } else {
-            groupedByMonth[monthKey].unsoldCount++;
-        }
-    });
-    
-    // 按月份倒序
-    const sortedMonths = Object.keys(groupedByMonth).sort((a, b) => b.localeCompare(a));
-    
-    let html = '';
-    
-    sortedMonths.forEach(monthKey => {
-        const monthData = groupedByMonth[monthKey];
-        
-        html += `
-            <div class="month-group">
-                <div class="month-header">
-                    <i class="fas fa-calendar-alt"></i> ${monthData.name}
-                    <span class="month-stats">
-                        <span class="stat-badge">
-                            <i class="fas fa-list"></i> ${monthData.records.length} 条
-                        </span>
-                        <span class="stat-badge ${monthData.totalProfit >= 0 ? 'profit-positive' : 'profit-negative'}">
-                            <i class="fas fa-chart-line"></i> ${monthData.totalProfit.toFixed(2)} 元
-                        </span>
-                    </span>
-                </div>
-                
-                <div class="month-summary">
-                    <div class="summary-grid">
-                        <div class="summary-item">
-                            <div class="summary-label">总成本</div>
-                            <div class="summary-value">${monthData.totalCost.toFixed(2)} 元</div>
-                        </div>
-                        <div class="summary-item">
-                            <div class="summary-label">总收入</div>
-                            <div class="summary-value">${monthData.totalIncome.toFixed(2)} 元</div>
-                        </div>
-                        <div class="summary-item">
-                            <div class="summary-label">已卖出</div>
-                            <div class="summary-value">${monthData.soldCount} 件</div>
-                        </div>
-                        <div class="summary-item">
-                            <div class="summary-label">未卖出</div>
-                            <div class="summary-value">${monthData.unsoldCount} 件</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="month-records">
-        `;
-        
-        // 显示本月记录（最多5条）
-        const recentRecords = monthData.records.sort((a, b) => 
-            new Date(b.created_at) - new Date(a.created_at)
-        ).slice(0, 5);
-        
-        recentRecords.forEach(record => {
-            html += createRecordItemHTML(record, true);
-        });
-        
-        if (monthData.records.length > 5) {
-            html += `
-                <div class="more-records">
-                    <i class="fas fa-ellipsis-h"></i> 本月还有 ${monthData.records.length - 5} 条记录
-                </div>
-            `;
-        }
-        
-        html += `
-                </div>
-            </div>
-        `;
-    });
-    
-    recordsList.innerHTML = html;
-}
-
 // 创建单个记录项的HTML
 function createRecordItemHTML(record, compact = false) {
     const profit = record.profit !== null ? parseFloat(record.profit) : null;
@@ -1224,6 +1046,13 @@ function createRecordItemHTML(record, compact = false) {
             <span class="record-value">${record.remark}</span>
         </div>` : '';
     
+    // 修改点1：显示尺码/款式
+    const sizeText = record.goods_name ? 
+        `<div class="record-field">
+            <span class="record-label">尺码/款式:</span>
+            <span class="record-value">${record.goods_name}</span>
+        </div>` : '';
+    
     const compactClass = compact ? 'compact' : '';
     
     return `
@@ -1231,13 +1060,13 @@ function createRecordItemHTML(record, compact = false) {
             <div class="record-header">
                 <div class="record-title">
                     <i class="fas fa-barcode"></i> ${record.goods_id}
-                    ${record.goods_name && record.goods_name !== record.goods_id ? 
-                        `<span class="record-subtitle">${record.goods_name}</span>` : ''}
                 </div>
                 <div class="record-status ${statusClass}">${record.status}</div>
             </div>
             
             <div class="record-body">
+                ${sizeText}
+                
                 <div class="record-field">
                     <span class="record-label">成本:</span>
                     <span class="record-value">
@@ -1343,431 +1172,6 @@ function updateStats() {
     avgProfitRate.style.color = avgRate >= 0 ? '#2ecc71' : '#e74c3c';
 }
 
-// 加载月度统计
-async function loadMonthlyStats() {
-    const selectedMonth = document.getElementById('monthSelector').value;
-    const monthlyStatsDiv = document.getElementById('monthlyStats');
-    
-    // 生成月份选项
-    const monthSelector = document.getElementById('monthSelector');
-    if (monthSelector.options.length === 0) {
-        // 获取所有记录的月份
-        const monthsSet = new Set();
-        allGoodsRecords.forEach(record => {
-            const date = new Date(record.created_at);
-            const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-            monthsSet.add(monthKey);
-        });
-        
-        // 排序月份（最近的在前）
-        const sortedMonths = Array.from(monthsSet).sort((a, b) => b.localeCompare(a));
-        
-        // 添加选项
-        sortedMonths.forEach(monthKey => {
-            const [year, month] = monthKey.split('-');
-            const option = document.createElement('option');
-            option.value = monthKey;
-            option.textContent = `${year}年${parseInt(month)}月`;
-            monthSelector.appendChild(option);
-        });
-        
-        // 默认选择最近一个月
-        if (sortedMonths.length > 0) {
-            monthSelector.value = sortedMonths[0];
-        }
-    }
-    
-    // 计算月度统计
-    const monthlyData = calculateMonthlyStats(selectedMonth);
-    
-    let html = `
-        <div class="month-stat-item">
-            <div class="month-header">
-                <i class="fas fa-chart-bar"></i> ${monthlyData.monthName} 统计
-            </div>
-            <div class="month-data">
-                <div class="month-data-item">
-                    <div class="month-data-label">总记录数</div>
-                    <div class="month-data-value">${monthlyData.totalRecords} 条</div>
-                </div>
-                <div class="month-data-item">
-                    <div class="month-data-label">总利润</div>
-                    <div class="month-data-value" style="color: ${monthlyData.totalProfit >= 0 ? '#2ecc71' : '#e74c3c'}">
-                        ${monthlyData.totalProfit.toFixed(2)} 元
-                    </div>
-                </div>
-                <div class="month-data-item">
-                    <div class="month-data-label">总成本</div>
-                    <div class="month-data-value">${monthlyData.totalCost.toFixed(2)} 元</div>
-                </div>
-                <div class="month-data-item">
-                    <div class="month-data-label">利润率</div>
-                    <div class="month-data-value" style="color: ${monthlyData.profitRate >= 0 ? '#2ecc71' : '#e74c3c'}">
-                        ${monthlyData.profitRate.toFixed(1)}%
-                    </div>
-                </div>
-                <div class="month-data-item">
-                    <div class="month-data-label">卖出数量</div>
-                    <div class="month-data-value">${monthlyData.soldCount} 件</div>
-                </div>
-                <div class="month-data-item">
-                    <div class="month-data-label">未卖出数量</div>
-                    <div class="month-data-value">${monthlyData.unsoldCount} 件</div>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    monthlyStatsDiv.innerHTML = html;
-}
-
-function calculateMonthlyStats(monthKey) {
-    // 筛选指定月份的记录
-    const monthRecords = allGoodsRecords.filter(record => {
-        const date = new Date(record.created_at);
-        const recordMonthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        return recordMonthKey === monthKey;
-    });
-    
-    // 解析月份名称
-    const [year, month] = monthKey.split('-');
-    const monthName = `${year}年${parseInt(month)}月`;
-    
-    // 计算统计
-    const soldRecords = monthRecords.filter(r => r.status && r.status.includes('卖出'));
-    const unsoldRecords = monthRecords.filter(r => !r.status || !r.status.includes('卖出'));
-    
-    const totalProfit = soldRecords.reduce((sum, record) => sum + (parseFloat(record.profit) || 0), 0);
-    const totalCost = soldRecords.reduce((sum, record) => sum + (parseFloat(record.total_cost) || 0), 0);
-    const totalIncome = soldRecords.reduce((sum, record) => sum + (parseFloat(record.actual_income) || 0), 0);
-    
-    const profitRate = totalIncome > 0 ? (totalProfit / totalIncome) * 100 : 0;
-    
-    return {
-        monthName,
-        totalRecords: monthRecords.length,
-        totalProfit,
-        totalCost,
-        totalIncome,
-        profitRate,
-        soldCount: soldRecords.length,
-        unsoldCount: unsoldRecords.length
-    };
-}
-
-// ========== 货号详情模态框 ==========
-function showGoodsDetailModal(goodsId) {
-    selectedGoodsId = goodsId;
-    
-    // 获取该货号的所有记录
-    const goodsRecords = allGoodsRecords.filter(record => record.goods_id === goodsId);
-    
-    if (goodsRecords.length === 0) {
-        showMessage('未找到该货号的记录', 'error');
-        return;
-    }
-    
-    // 更新模态框标题
-    document.getElementById('modalGoodsId').textContent = goodsId;
-    
-    // 生成历史记录HTML
-    let html = '';
-    
-    // 按时间倒序
-    const sortedRecords = goodsRecords.sort((a, b) => 
-        new Date(b.created_at) - new Date(a.created_at)
-    );
-    
-    sortedRecords.forEach((record, index) => {
-        const profit = record.profit !== null ? parseFloat(record.profit) : null;
-        const profitClass = profit !== null ? 
-            (profit > 0 ? 'positive' : profit < 0 ? 'negative' : '') : '';
-        
-        html += `
-            <div class="goods-history-item">
-                <div class="goods-history-header">
-                    <div class="goods-history-date">
-                        ${formatDateTime(record.created_at)}
-                        <span class="status-badge status-${record.status.includes('卖出') ? 'sold' : 'unsold'}">
-                            ${record.status}
-                        </span>
-                    </div>
-                    <div class="goods-history-submitter">
-                        <i class="fas fa-user"></i> ${record.submitter}
-                    </div>
-                </div>
-                <div class="goods-history-body">
-                    <div class="history-field">
-                        <span class="history-label">单价:</span>
-                        <span class="history-value">${record.unit_price.toFixed(2)} 元</span>
-                    </div>
-                    <div class="history-field">
-                        <span class="history-label">数量:</span>
-                        <span class="history-value">${record.quantity}</span>
-                    </div>
-                    <div class="history-field">
-                        <span class="history-label">总成本:</span>
-                        <span class="history-value">${record.total_cost.toFixed(2)} 元</span>
-                    </div>
-                    <div class="history-field">
-                        <span class="history-label">运费:</span>
-                        <span class="history-value">${record.shipping_fee.toFixed(2)} 元</span>
-                    </div>
-        `;
-        
-        if (record.actual_income) {
-            html += `
-                <div class="history-field">
-                    <span class="history-label">实际收入:</span>
-                    <span class="history-value">${record.actual_income.toFixed(2)} 元</span>
-                </div>
-            `;
-        }
-        
-        if (profit !== null) {
-            html += `
-                <div class="history-field">
-                    <span class="history-label">利润:</span>
-                    <span class="history-value ${profitClass}">${profit.toFixed(2)} 元</span>
-                </div>
-            `;
-        }
-        
-        if (record.remark) {
-            html += `
-                <div class="history-field full-width">
-                    <span class="history-label">备注:</span>
-                    <span class="history-value">${record.remark}</span>
-                </div>
-            `;
-        }
-        
-        html += `
-                </div>
-            </div>
-        `;
-    });
-    
-    // 更新模态框内容
-    document.getElementById('goodsHistory').innerHTML = html;
-    
-    // 显示模态框
-    document.getElementById('goodsDetailModal').style.display = 'block';
-    document.getElementById('overlay').style.display = 'block';
-    
-    // 添加样式
-    if (!document.querySelector('#history-styles')) {
-        const styleEl = document.createElement('style');
-        styleEl.id = 'history-styles';
-        styleEl.textContent = `
-            .goods-history-item {
-                background: #f8f9fa;
-                border-radius: 10px;
-                padding: 20px;
-                margin-bottom: 15px;
-                border-left: 4px solid var(--info-color);
-            }
-            
-            .goods-history-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 15px;
-                padding-bottom: 10px;
-                border-bottom: 1px solid #e9ecef;
-            }
-            
-            .goods-history-date {
-                font-weight: 600;
-                color: var(--dark-color);
-                display: flex;
-                align-items: center;
-                gap: 10px;
-            }
-            
-            .status-badge {
-                padding: 4px 10px;
-                border-radius: 12px;
-                font-size: 0.8rem;
-                font-weight: 600;
-            }
-            
-            .status-sold {
-                background: #d4edda;
-                color: #155724;
-            }
-            
-            .status-unsold {
-                background: #fff3cd;
-                color: #856404;
-            }
-            
-            .goods-history-submitter {
-                color: var(--gray-color);
-                font-size: 0.9rem;
-            }
-            
-            .goods-history-body {
-                display: grid;
-                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-                gap: 15px;
-            }
-            
-            .history-field {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                padding: 5px 0;
-            }
-            
-            .history-label {
-                color: var(--gray-color);
-                font-size: 0.9rem;
-            }
-            
-            .history-value {
-                font-weight: 500;
-                color: var(--dark-color);
-            }
-            
-            .history-value.positive {
-                color: #2ecc71;
-            }
-            
-            .history-value.negative {
-                color: #e74c3c;
-            }
-            
-            .full-width {
-                grid-column: 1 / -1;
-            }
-        `;
-        document.head.appendChild(styleEl);
-    }
-}
-
-function closeGoodsDetailModal() {
-    document.getElementById('goodsDetailModal').style.display = 'none';
-    document.getElementById('overlay').style.display = 'none';
-    selectedGoodsId = null;
-}
-
-// ========== 导出功能 ==========
-function copyFilteredRecords() {
-    if (currentRecords.length === 0) {
-        showMessage('没有可复制的记录', 'error');
-        return;
-    }
-    
-    // 构建表格格式文本
-    let text = '货品管理记录汇总\n\n';
-    text += '时间,货号,商品名称,状态,单价,数量,总成本,运费,运费备注,实际收入,利润,提交人,备注\n';
-    text += '----------------------------------------------------------------------------------------------------------------------\n';
-    
-    currentRecords.forEach(record => {
-        text += `${formatDateTime(record.created_at)},`;
-        text += `${record.goods_id},`;
-        text += `${record.goods_name || ''},`;
-        text += `${record.status},`;
-        text += `${record.unit_price.toFixed(2)},`;
-        text += `${record.quantity},`;
-        text += `${record.total_cost.toFixed(2)},`;
-        text += `${record.shipping_fee.toFixed(2)},`;
-        text += `${record.shipping_note || ''},`;
-        text += `${record.actual_income ? record.actual_income.toFixed(2) : ''},`;
-        text += `${record.profit ? record.profit.toFixed(2) : ''},`;
-        text += `${record.submitter},`;
-        text += `${record.remark || ''}\n`;
-    });
-    
-    // 复制到剪贴板
-    navigator.clipboard.writeText(text).then(() => {
-        showMessage('✅ 所有记录已复制到剪贴板，可粘贴到Excel中', 'success');
-    }).catch(err => {
-        console.error('复制失败:', err);
-        showMessage('❌ 复制失败，请手动选择并复制', 'error');
-    });
-}
-
-function exportToExcel() {
-    if (currentRecords.length === 0) {
-        showMessage('没有可导出的记录', 'error');
-        return;
-    }
-    
-    // 创建CSV数据
-    let csv = '时间,货号,商品名称,状态,单价,数量,总成本,运费,运费备注,实际收入,利润,提交人,备注\n';
-    
-    currentRecords.forEach(record => {
-        csv += `"${formatDateTime(record.created_at)}",`;
-        csv += `"${record.goods_id}",`;
-        csv += `"${record.goods_name || ''}",`;
-        csv += `"${record.status}",`;
-        csv += `"${record.unit_price.toFixed(2)}",`;
-        csv += `"${record.quantity}",`;
-        csv += `"${record.total_cost.toFixed(2)}",`;
-        csv += `"${record.shipping_fee.toFixed(2)}",`;
-        csv += `"${record.shipping_note || ''}",`;
-        csv += `"${record.actual_income ? record.actual_income.toFixed(2) : ''}",`;
-        csv += `"${record.profit ? record.profit.toFixed(2) : ''}",`;
-        csv += `"${record.submitter}",`;
-        csv += `"${record.remark || ''}"\n`;
-    });
-    
-    // 创建Blob和下载链接
-    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    
-    link.href = url;
-    link.setAttribute('download', `货品记录_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    
-    showMessage('✅ Excel文件已生成，正在下载...', 'success');
-}
-
-function printRecords() {
-    // 创建一个打印专用的样式
-    const printStyle = document.createElement('style');
-    printStyle.textContent = `
-        @media print {
-            body * {
-                visibility: hidden;
-            }
-            .container, .container * {
-                visibility: visible;
-            }
-            .container {
-                position: absolute;
-                left: 0;
-                top: 0;
-                width: 100%;
-                box-shadow: none;
-            }
-            .role-switch, .btn, .pagination, .export-actions {
-                display: none !important;
-            }
-            .record-item {
-                break-inside: avoid;
-                page-break-inside: avoid;
-            }
-        }
-    `;
-    
-    document.head.appendChild(printStyle);
-    window.print();
-    document.head.removeChild(printStyle);
-}
-
-// ========== 批量操作 ==========
-function batchDeleteRecords() {
-    // 这里可以实现批量删除功能
-    // 需要先添加复选框选择记录
-    showMessage('批量删除功能开发中...', 'info');
-}
-
 // ========== 工具函数 ==========
 // 显示消息
 function showMessage(text, type) {
@@ -1821,4 +1225,4 @@ function formatDateTime(isoString) {
 }
 
 // 页面加载完成的初始化
-console.log('货品管理账本专业版已加载');
+console.log('货品管理账本专业版已加载 - 已更新尺码/款式字段和运费自动计算功能');

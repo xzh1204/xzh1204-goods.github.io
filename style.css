@@ -227,6 +227,24 @@ textarea {
     min-height: 80px;
 }
 
+/* 自动计算输入框样式 */
+.auto-calc-input {
+    background-color: #f8f9fa;
+    border-color: #b3d4fc;
+}
+
+.auto-calc-input:focus {
+    background-color: #fff;
+    border-color: var(--primary-color);
+}
+
+.calc-hint {
+    font-size: 0.85rem;
+    color: var(--info-color);
+    margin-top: 5px;
+    font-style: italic;
+}
+
 /* 计算字段样式 */
 .calculated-field, .profit-field {
     background-color: #f8f9fa !important;
@@ -254,38 +272,6 @@ textarea {
 .row .input-group {
     flex: 1;
     margin-bottom: 0;
-}
-
-/* 运费计算器 */
-.calc-box {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
-
-.calc-box input {
-    flex: 2;
-}
-
-.calc-btn {
-    flex: 1;
-    padding: 14px;
-    background: var(--primary-color);
-    color: white;
-    border: none;
-    border-radius: 10px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: var(--transition);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-}
-
-.calc-btn:hover {
-    background: var(--primary-dark);
-    transform: translateY(-2px);
 }
 
 /* 按钮组 */

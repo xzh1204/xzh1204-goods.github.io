@@ -59,8 +59,9 @@
                         <input type="text" id="goodsId" placeholder="自动填充或输入新货号" required readonly>
                     </div>
                     <div class="input-group">
-                        <label for="goodsName"><i class="fas fa-tag"></i> 商品名称</label>
-                        <input type="text" id="goodsName" placeholder="自动填充">
+                        <!-- 修改点1：商品名称改为尺码/款式 -->
+                        <label for="goodsSize"><i class="fas fa-ruler"></i> 尺码/款式</label>
+                        <input type="text" id="goodsSize" placeholder="例如: XL、黑色款、A版型">
                     </div>
                 </div>
                 
@@ -98,13 +99,10 @@
                 </div>
                 
                 <div class="input-group">
-                    <label for="shippingExpr"><i class="fas fa-calculator"></i> 运费 (元) - 可输入算式</label>
-                    <div class="calc-box">
-                        <input type="text" id="shippingExpr" placeholder="例如: 8 或 3.68+3.68">
-                        <button type="button" id="calcShippingBtn" class="calc-btn">
-                            <i class="fas fa-equals"></i> 计算
-                        </button>
-                    </div>
+                    <!-- 修改点2：运费自动计算，去除计算按钮 -->
+                    <label for="shippingExpr"><i class="fas fa-calculator"></i> 运费 (元) - 可输入数字或算式自动计算</label>
+                    <input type="text" id="shippingExpr" placeholder="例如: 8 或 3.68+3.68" class="auto-calc-input">
+                    <div class="calc-hint" id="shippingCalcHint">输入后自动计算</div>
                     <input type="hidden" id="shippingFee">
                 </div>
                 
