@@ -59,7 +59,6 @@
                         <input type="text" id="goodsId" placeholder="自动填充或输入新货号" required readonly>
                     </div>
                     <div class="input-group">
-                        <!-- 修改点1：商品名称改为尺码/款式 -->
                         <label for="goodsSize"><i class="fas fa-ruler"></i> 尺码/款式</label>
                         <input type="text" id="goodsSize" placeholder="例如: XL、黑色款、A版型">
                     </div>
@@ -99,7 +98,6 @@
                 </div>
                 
                 <div class="input-group">
-                    <!-- 修改点2：运费自动计算，去除计算按钮 -->
                     <label for="shippingExpr"><i class="fas fa-calculator"></i> 运费 (元) - 可输入数字或算式自动计算</label>
                     <input type="text" id="shippingExpr" placeholder="例如: 8 或 3.68+3.68" class="auto-calc-input">
                     <div class="calc-hint" id="shippingCalcHint">输入后自动计算</div>
@@ -122,16 +120,17 @@
                         <input type="number" id="actualIncome" min="0" step="0.01" placeholder="0.00">
                     </div>
                     
+                    <!-- 利润显示区域 - 修复：确保显示 -->
                     <div class="input-group">
                         <label><i class="fas fa-chart-bar"></i> 利润 (元)</label>
                         <input type="text" id="profitDisplay" readonly class="profit-field">
                     </div>
                 </div>
                 
-                <!-- 提交人信息 -->
+                <!-- 提交人信息 - 修改：改为选填 -->
                 <div class="input-group">
-                    <label for="submitter"><i class="fas fa-user"></i> 提交人 *</label>
-                    <input type="text" id="submitter" placeholder="请输入您的称呼" required>
+                    <label for="submitter"><i class="fas fa-user"></i> 提交人 (选填)</label>
+                    <input type="text" id="submitter" placeholder="请输入您的称呼（可不填）">
                 </div>
                 
                 <!-- 备注 -->
@@ -320,7 +319,7 @@
     <script>
         // ========== 重要配置 ==========
         const SUPABASE_CONFIG = {
-            url: 'https://gbsqrtaooovsxnwftkbk.supabase.co', // 替换为你的Supabase URL
+            url: ' https://gbsqrtaooovsxnwftkbk.supabase.co', // 替换为你的Supabase URL
             key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdic3FydGFvb292c3hud2Z0a2JrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ3NjM3ODcsImV4cCI6MjA4MDMzOTc4N30.FKUrAR1qr5bSNEJMomU24aYFDK-fep3eNjZY1n8QgN4' // 替换为你的anon public密钥
         };
         // ========== 配置结束 ==========

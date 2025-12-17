@@ -1,4 +1,4 @@
-// script.js - 货品管理账本专业版主逻辑
+// script.js - 货品管理账本专业版主逻辑 - 修复版
 
 // ========== 全局变量和初始化 ==========
 let currentRecords = [];
@@ -119,8 +119,11 @@ function initEventListeners() {
     document.getElementById('goodsForm').addEventListener('submit', handleFormSubmit);
     document.getElementById('resetBtn').addEventListener('click', resetForm);
     
-    // 修改点2：运费自动计算（移除按钮，添加输入监听）
+    // 运费自动计算
     document.getElementById('shippingExpr').addEventListener('input', calculateShipping);
+    
+    // 实际收入变化时计算利润
+    document.getElementById('actualIncome').addEventListener('input', calculateProfit);
     
     document.getElementById('saveTemplateBtn').addEventListener('click', saveGoodsTemplate);
     
@@ -179,6 +182,21 @@ function initEventListeners() {
     
     // 月份选择器
     document.getElementById('monthSelector').addEventListener('change', loadMonthlyStats);
+    
+    // 单价和数量变化时重新计算利润
+    document.getElementById('unitPrice').addEventListener('input', () => {
+        calculateTotalCost();
+        if (document.getElementById('status').value.includes('已卖出')) {
+            calculateProfit();
+        }
+    });
+    
+    document.getElementById('quantity').addEventListener('input', () => {
+        calculateTotalCost();
+        if (document.getElementById('status').value.includes('已卖出')) {
+            calculateProfit();
+        }
+    });
 }
 
 // 检查URL参数
@@ -302,7 +320,7 @@ function searchGoodsInDatabase(goodsId) {
 function fillFormFromTemplate(goodsId) {
     const template = goodsTemplates[goodsId];
     document.getElementById('goodsId').value = goodsId;
-    document.getElementById('goodsSize').value = template.size || ''; // 修改点1：改为尺码/款式
+    document.getElementById('goodsSize').value = template.size || '';
     document.getElementById('unitPrice').value = template.unit_price || '';
     document.getElementById('shippingExpr').value = template.shipping_fee || '';
     document.getElementById('shippingNote').value = template.shipping_note || '';
@@ -320,7 +338,6 @@ function fillFormFromTemplate(goodsId) {
 
 function fillFormFromRecord(record) {
     document.getElementById('goodsId').value = record.goods_id;
-    // 修改点1：商品名称改为尺码/款式
     document.getElementById('goodsSize').value = record.goods_name || '';
     document.getElementById('unitPrice').value = record.unit_price || '';
     document.getElementById('quantity').value = record.quantity || 1;
@@ -365,7 +382,7 @@ function initFormCalculations() {
     calculateTotalCost();
 }
 
-// 运费计算 - 修改点2：自动计算，无需按钮
+// 运费计算 - 自动计算
 function calculateShipping() {
     const shippingExpr = document.getElementById('shippingExpr');
     const shippingFeeInput = document.getElementById('shippingFee');
@@ -417,7 +434,7 @@ function calculateShipping() {
     }
 }
 
-// 利润计算
+// 利润计算 - 修复：确保正确计算和显示
 function calculateProfit() {
     const totalCost = parseFloat(document.getElementById('totalCost').value) || 0;
     const shippingFee = parseFloat(document.getElementById('shippingFee').value) || 0;
@@ -445,12 +462,6 @@ function handleStatusChange() {
     if (status.includes('已卖出')) {
         incomeSection.style.display = 'block';
         
-        // 添加收入输入事件监听
-        const actualIncomeInput = document.getElementById('actualIncome');
-        if (actualIncomeInput) {
-            actualIncomeInput.addEventListener('input', calculateProfit);
-        }
-        
         // 立即计算利润
         calculateProfit();
     } else {
@@ -474,7 +485,8 @@ async function handleFormSubmit(event) {
     if (formData.status.includes('已卖出')) {
         const totalCost = parseFloat(document.getElementById('totalCost').value) || 0;
         const shippingFee = parseFloat(document.getElementById('shippingFee').value) || 0;
-        formData.profit = formData.actual_income - totalCost - shippingFee;
+        const actualIncome = parseFloat(document.getElementById('actualIncome').value) || 0;
+        formData.profit = actualIncome - totalCost - shippingFee;
     } else {
         formData.profit = null;
     }
@@ -517,12 +529,11 @@ async function handleFormSubmit(event) {
     }
 }
 
-// 验证表单
+// 验证表单 - 修复：提交人改为选填
 function validateForm() {
     const goodsId = document.getElementById('goodsId').value.trim();
     const unitPrice = document.getElementById('unitPrice').value;
     const status = document.getElementById('status').value;
-    const submitter = document.getElementById('submitter').value.trim();
     
     if (!goodsId) {
         showMessage('请输入货号', 'error');
@@ -547,10 +558,7 @@ function validateForm() {
         }
     }
     
-    if (!submitter) {
-        showMessage('请输入提交人', 'error');
-        return false;
-    }
+    // 提交人改为选填，不需要验证
     
     return true;
 }
@@ -565,12 +573,15 @@ function collectFormData() {
         shippingFee = parseFloat(shippingExpr) || 0;
     }
     
-    // 修改点1：尺码/款式字段
+    // 尺码/款式字段
     const goodsSize = document.getElementById('goodsSize').value.trim();
+    
+    // 提交人改为选填
+    const submitter = document.getElementById('submitter').value.trim();
     
     return {
         goods_id: document.getElementById('goodsId').value.trim(),
-        goods_name: goodsSize || null, // 修改点1：改为尺码/款式
+        goods_name: goodsSize || null,
         unit_price: parseFloat(document.getElementById('unitPrice').value) || 0,
         quantity: parseInt(document.getElementById('quantity').value) || 1,
         total_cost: parseFloat(document.getElementById('totalCost').value) || 0,
@@ -580,7 +591,7 @@ function collectFormData() {
         actual_income: document.getElementById('status').value.includes('已卖出') ? 
             parseFloat(document.getElementById('actualIncome').value) || 0 : null,
         remark: document.getElementById('remark').value.trim(),
-        submitter: document.getElementById('submitter').value.trim(),
+        submitter: submitter || '未填写', // 修复：设为选填，默认值
         created_at: new Date().toISOString()
     };
 }
@@ -638,7 +649,7 @@ function saveGoodsTemplateToLocal(formData) {
     if (!formData.goods_id) return;
     
     goodsTemplates[formData.goods_id] = {
-        size: formData.goods_name || '', // 修改点1：改为尺码/款式
+        size: formData.goods_name || '',
         unit_price: formData.unit_price,
         shipping_fee: formData.shipping_fee,
         shipping_note: formData.shipping_note,
@@ -669,7 +680,7 @@ function saveGoodsTemplate() {
     
     saveGoodsTemplateToLocal({
         goods_id: goodsId,
-        goods_name: goodsSize, // 修改点1：改为尺码/款式
+        goods_name: goodsSize,
         unit_price: parseFloat(unitPrice) || 0,
         shipping_fee: parseFloat(shippingExpr) || 0,
         shipping_note: shippingNote,
@@ -784,7 +795,7 @@ function updateGoodsTemplatesFromRecords() {
             new Date(record.created_at) > new Date(goodsTemplates[record.goods_id].updated_at || 0)) {
             
             goodsTemplates[record.goods_id] = {
-                size: record.goods_name || '', // 修改点1：改为尺码/款式
+                size: record.goods_name || '',
                 unit_price: record.unit_price,
                 shipping_fee: record.shipping_fee,
                 shipping_note: record.shipping_note,
@@ -1018,7 +1029,7 @@ function displayTimelineRecords() {
     });
 }
 
-// 创建单个记录项的HTML
+// 创建单个记录项的HTML - 修复：确保利润显示
 function createRecordItemHTML(record, compact = false) {
     const profit = record.profit !== null ? parseFloat(record.profit) : null;
     const profitClass = profit !== null ? 
@@ -1046,7 +1057,7 @@ function createRecordItemHTML(record, compact = false) {
             <span class="record-value">${record.remark}</span>
         </div>` : '';
     
-    // 修改点1：显示尺码/款式
+    // 尺码/款式显示
     const sizeText = record.goods_name ? 
         `<div class="record-field">
             <span class="record-label">尺码/款式:</span>
@@ -1089,7 +1100,7 @@ function createRecordItemHTML(record, compact = false) {
             
             <div class="record-footer">
                 <div class="record-info">
-                    <span><i class="fas fa-user"></i> ${record.submitter}</span>
+                    <span><i class="fas fa-user"></i> ${record.submitter || '未填写'}</span>
                     <span><i class="fas fa-clock"></i> ${formatDateTime(record.created_at)}</span>
                 </div>
                 <div class="record-actions">
@@ -1225,4 +1236,4 @@ function formatDateTime(isoString) {
 }
 
 // 页面加载完成的初始化
-console.log('货品管理账本专业版已加载 - 已更新尺码/款式字段和运费自动计算功能');
+console.log('货品管理账本专业版已加载 - 修复版：利润显示和提交人选填');
