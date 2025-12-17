@@ -3,250 +3,539 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>货品管理账本</title>
+    <title>货品管理账本 | 精美设计版</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="container">
-        <!-- 角色选择 -->
-        <div class="role-selector">
-            <button id="role-partner" class="role-btn active">
-                <i class="fas fa-user"></i> 合伙人（提交信息）
-            </button>
-            <button id="role-accountant" class="role-btn">
-                <i class="fas fa-chart-line"></i> 记账人（查看分析）
-            </button>
-        </div>
+    <div class="app-container">
+        <!-- 顶部导航栏 -->
+        <nav class="navbar">
+            <div class="nav-brand">
+                <i class="fas fa-boxes-stacked brand-icon"></i>
+                <h1>货品管理账本</h1>
+                <span class="version-badge">v2.0</span>
+            </div>
+            <div class="nav-actions">
+                <div class="theme-toggle">
+                    <i class="fas fa-sun"></i>
+                </div>
+            </div>
+        </nav>
 
-        <!-- 合伙人视图：表单提交 -->
-        <div id="partner-view" class="view active-view">
-            <h1><i class="fas fa-box"></i> 货品信息提交</h1>
-            
-            <form id="goods-form">
-                <div class="form-group">
-                    <label for="goods-id"><i class="fas fa-barcode"></i> 货号 *</label>
-                    <input type="text" id="goods-id" required 
-                           placeholder="输入货号（字母数字组合），输入已有货号可自动填充">
-                    <div id="suggestions" class="suggestions"></div>
-                </div>
-                
-                <div class="form-group">
-                    <label for="goods-name"><i class="fas fa-ruler"></i> 尺码/款式 *</label>
-                    <input type="text" id="goods-name" required 
-                           placeholder="填写尺码或款式信息">
-                </div>
-                
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="unit-price"><i class="fas fa-tag"></i> 拿货单价（元） *</label>
-                        <input type="number" id="unit-price" step="0.01" required 
-                               placeholder="0.00">
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <!-- 左侧角色选择 -->
+            <div class="sidebar">
+                <div class="role-selector">
+                    <div class="role-option active" data-role="partner">
+                        <div class="role-icon">
+                            <i class="fas fa-user-edit"></i>
+                        </div>
+                        <div class="role-info">
+                            <h3>合伙人</h3>
+                            <p>提交货品信息</p>
+                        </div>
+                        <div class="role-indicator"></div>
                     </div>
                     
-                    <div class="form-group">
-                        <label for="quantity"><i class="fas fa-cubes"></i> 数量 *</label>
-                        <input type="number" id="quantity" value="1" min="1" required>
+                    <div class="role-option" data-role="accountant">
+                        <div class="role-icon">
+                            <i class="fas fa-chart-line"></i>
+                        </div>
+                        <div class="role-info">
+                            <h3>记账人</h3>
+                            <p>查看数据分析</p>
+                        </div>
+                        <div class="role-indicator"></div>
+                    </div>
+                </div>
+                
+                <div class="system-stats">
+                    <div class="stat-item">
+                        <div class="stat-icon">
+                            <i class="fas fa-database"></i>
+                        </div>
+                        <div class="stat-details">
+                            <span class="stat-value" id="live-record-count">0</span>
+                            <span class="stat-label">今日记录</span>
+                        </div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-icon">
+                            <i class="fas fa-chart-bar"></i>
+                        </div>
+                        <div class="stat-details">
+                            <span class="stat-value" id="live-profit-today">¥0</span>
+                            <span class="stat-label">今日利润</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧内容区 -->
+            <div class="content-area">
+                <!-- 合伙人视图 -->
+                <div class="view-content active-view" id="partner-view">
+                    <div class="view-header">
+                        <h2><i class="fas fa-edit"></i> 货品信息提交</h2>
+                        <p class="view-subtitle">合伙人可通过此表单提交货品状态更新</p>
                     </div>
                     
-                    <div class="form-group">
-                        <label for="total-cost"><i class="fas fa-calculator"></i> 总价（自动计算）</label>
-                        <input type="text" id="total-cost" readonly>
+                    <div class="form-card">
+                        <form id="goods-form" class="elegant-form">
+                            <!-- 智能货号搜索 -->
+                            <div class="form-section">
+                                <div class="section-header">
+                                    <div class="section-icon">
+                                        <i class="fas fa-search"></i>
+                                    </div>
+                                    <h3>智能货号系统</h3>
+                                </div>
+                                <div class="form-group floating-label">
+                                    <input type="text" id="goods-id" required 
+                                           placeholder="请输入货号">
+                                    <label for="goods-id">
+                                        <i class="fas fa-barcode"></i> 货号 *
+                                    </label>
+                                    <div class="form-hint">
+                                        输入已有货号可自动填充历史信息
+                                    </div>
+                                    <div id="suggestions" class="smart-suggestions"></div>
+                                </div>
+                            </div>
+                            
+                            <!-- 基本信息 -->
+                            <div class="form-section">
+                                <div class="section-header">
+                                    <div class="section-icon">
+                                        <i class="fas fa-info-circle"></i>
+                                    </div>
+                                    <h3>基本信息</h3>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group floating-label">
+                                        <input type="text" id="goods-name" required 
+                                               placeholder="请输入尺码或款式">
+                                        <label for="goods-name">
+                                            <i class="fas fa-ruler-combined"></i> 尺码/款式 *
+                                        </label>
+                                    </div>
+                                    
+                                    <div class="form-group floating-label">
+                                        <input type="number" id="unit-price" step="0.01" required 
+                                               placeholder="0.00">
+                                        <label for="unit-price">
+                                            <i class="fas fa-tag"></i> 拿货单价（元） *
+                                        </label>
+                                    </div>
+                                    
+                                    <div class="form-group floating-label">
+                                        <input type="number" id="quantity" value="1" min="1" required 
+                                               placeholder="1">
+                                        <label for="quantity">
+                                            <i class="fas fa-layer-group"></i> 数量 *
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <!-- 自动计算总价 -->
+                                <div class="auto-calc-display">
+                                    <div class="calc-icon">
+                                        <i class="fas fa-calculator"></i>
+                                    </div>
+                                    <div class="calc-info">
+                                        <span class="calc-label">自动计算总价：</span>
+                                        <span class="calc-value" id="total-cost-display">¥0.00</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 状态选择 -->
+                            <div class="form-section">
+                                <div class="section-header">
+                                    <div class="section-icon">
+                                        <i class="fas fa-tasks"></i>
+                                    </div>
+                                    <h3>状态管理</h3>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">
+                                        <i class="fas fa-list-alt"></i> 当前状态 *
+                                    </label>
+                                    <div class="status-options">
+                                        <div class="status-option" data-value="已上架未卖出">
+                                            <div class="status-icon">
+                                                <i class="fas fa-store"></i>
+                                            </div>
+                                            <span>已上架未卖出</span>
+                                        </div>
+                                        <div class="status-option" data-value="被退回（有瑕疵等）">
+                                            <div class="status-icon return">
+                                                <i class="fas fa-undo"></i>
+                                            </div>
+                                            <span>被退回</span>
+                                        </div>
+                                        <div class="status-option" data-value="已下架">
+                                            <div class="status-icon">
+                                                <i class="fas fa-archive"></i>
+                                            </div>
+                                            <span>已下架</span>
+                                        </div>
+                                        <div class="status-option" data-value="已卖出（退款）未到账">
+                                            <div class="status-icon sold">
+                                                <i class="fas fa-shopping-cart"></i>
+                                            </div>
+                                            <span>已卖出未到账</span>
+                                        </div>
+                                        <div class="status-option" data-value="已卖出（退款）已到账">
+                                            <div class="status-icon sold">
+                                                <i class="fas fa-money-check-alt"></i>
+                                            </div>
+                                            <span>已卖出已到账</span>
+                                        </div>
+                                    </div>
+                                    <input type="hidden" id="status" required>
+                                </div>
+                            </div>
+                            
+                            <!-- 运费与财务 -->
+                            <div class="form-section">
+                                <div class="section-header">
+                                    <div class="section-icon">
+                                        <i class="fas fa-shipping-fast"></i>
+                                    </div>
+                                    <h3>运费与财务</h3>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="form-group floating-label">
+                                        <input type="text" id="shipping-fee" required 
+                                               placeholder="如：3.68+3.68">
+                                        <label for="shipping-fee">
+                                            <i class="fas fa-truck"></i> 运费（元） *
+                                        </label>
+                                        <div class="form-hint">
+                                            支持算式输入，自动实时计算
+                                        </div>
+                                        <div class="fee-preview" id="shipping-fee-preview">
+                                            <i class="fas fa-eye"></i> 实时计算：<span>0.00</span>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="form-group floating-label">
+                                        <input type="text" id="shipping-note" 
+                                               placeholder="运费组成说明">
+                                        <label for="shipping-note">
+                                            <i class="fas fa-sticky-note"></i> 运费备注
+                                        </label>
+                                    </div>
+                                </div>
+                                
+                                <!-- 卖出状态特殊字段 -->
+                                <div id="sold-fields" class="hidden">
+                                    <div class="profit-section">
+                                        <div class="section-header">
+                                            <div class="section-icon">
+                                                <i class="fas fa-chart-line"></i>
+                                            </div>
+                                            <h3>收入与利润</h3>
+                                        </div>
+                                        
+                                        <div class="form-row">
+                                            <div class="form-group floating-label">
+                                                <input type="number" id="actual-income" step="0.01" 
+                                                       placeholder="0.00">
+                                                <label for="actual-income">
+                                                    <i class="fas fa-money-bill-wave"></i> 实际收入/退款（元）
+                                                </label>
+                                            </div>
+                                            
+                                            <div class="profit-display-card">
+                                                <div class="profit-header">
+                                                    <i class="fas fa-calculator"></i>
+                                                    <span>利润（自动计算）</span>
+                                                </div>
+                                                <div class="profit-value" id="profit-display">
+                                                    <span class="profit-amount">¥0.00</span>
+                                                    <div class="profit-trend">
+                                                        <i class="fas fa-arrow-up"></i>
+                                                        <span>0%</span>
+                                                    </div>
+                                                </div>
+                                                <div class="profit-breakdown">
+                                                    <div class="breakdown-item">
+                                                        <span>收入</span>
+                                                        <span id="income-breakdown">¥0.00</span>
+                                                    </div>
+                                                    <div class="breakdown-item">
+                                                        <span>成本</span>
+                                                        <span id="cost-breakdown">¥0.00</span>
+                                                    </div>
+                                                    <div class="breakdown-item">
+                                                        <span>运费</span>
+                                                        <span id="shipping-breakdown">¥0.00</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 附加信息 -->
+                            <div class="form-section">
+                                <div class="section-header">
+                                    <div class="section-icon">
+                                        <i class="fas fa-user-circle"></i>
+                                    </div>
+                                    <h3>附加信息</h3>
+                                </div>
+                                
+                                <div class="form-row">
+                                    <div class="form-group floating-label">
+                                        <input type="text" id="submitter" 
+                                               placeholder="可不填写直接提交">
+                                        <label for="submitter">
+                                            <i class="fas fa-user-edit"></i> 提交人（选填）
+                                        </label>
+                                    </div>
+                                    
+                                    <div class="form-group floating-label full-width">
+                                        <textarea id="remark" rows="2" 
+                                                  placeholder="如有特殊说明，请在此填写"></textarea>
+                                        <label for="remark">
+                                            <i class="fas fa-comment-dots"></i> 备注
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- 表单操作 -->
+                            <div class="form-actions">
+                                <button type="button" id="reset-form" class="btn btn-secondary">
+                                    <i class="fas fa-redo-alt"></i>
+                                    <span>重置表单</span>
+                                </button>
+                                
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fas fa-paper-plane"></i>
+                                    <span>提交记录</span>
+                                    <div class="submit-loader hidden">
+                                        <div class="loader-circle"></div>
+                                    </div>
+                                </button>
+                            </div>
+                        </form>
+                        
+                        <div id="form-message" class="message-card hidden"></div>
                     </div>
                 </div>
-                
-                <div class="form-group">
-                    <label for="status"><i class="fas fa-list-alt"></i> 状态 *</label>
-                    <select id="status" required>
-                        <option value="">请选择状态</option>
-                        <option value="已上架未卖出">已上架未卖出</option>
-                        <option value="被退回（有瑕疵等）">被退回（有瑕疵等）</option>
-                        <option value="已下架">已下架</option>
-                        <option value="已卖出（退款）未到账">已卖出（退款）未到账</option>
-                        <option value="已卖出（退款）已到账">已卖出（退款）已到账</option>
-                    </select>
-                </div>
-                
-                <div class="form-group">
-                    <label for="shipping-fee"><i class="fas fa-shipping-fast"></i> 运费（元） *</label>
-                    <input type="text" id="shipping-fee" required 
-                           placeholder="输入数字或算式，如 3.68+3.68">
-                    <small class="hint">支持算式，自动实时计算</small>
-                </div>
-                
-                <div class="form-group">
-                    <label for="shipping-note"><i class="fas fa-sticky-note"></i> 运费备注</label>
-                    <input type="text" id="shipping-note" 
-                           placeholder="写明运费组成">
-                </div>
-                
-                <!-- 卖出状态时才显示的字段 -->
-                <div id="sold-fields" class="hidden">
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="actual-income"><i class="fas fa-money-bill-wave"></i> 实际收入/退款（元）</label>
-                            <input type="number" id="actual-income" step="0.01" 
-                                   placeholder="0.00">
+
+                <!-- 记账人视图 -->
+                <div class="view-content" id="accountant-view">
+                    <div class="view-header">
+                        <h2><i class="fas fa-chart-pie"></i> 账本数据分析</h2>
+                        <p class="view-subtitle">数据洞察与业务分析</p>
+                    </div>
+                    
+                    <!-- 筛选控制面板 -->
+                    <div class="filter-panel">
+                        <div class="filter-section">
+                            <div class="filter-group">
+                                <label class="filter-label">
+                                    <i class="fas fa-calendar-alt"></i> 时间范围
+                                </label>
+                                <div class="time-filter-tabs">
+                                    <div class="time-tab active" data-range="today">今天</div>
+                                    <div class="time-tab" data-range="week">本周</div>
+                                    <div class="time-tab" data-range="month">本月</div>
+                                    <div class="time-tab" data-range="year">今年</div>
+                                    <div class="time-tab" data-range="all">全部</div>
+                                    <div class="time-tab" data-range="custom">自定义</div>
+                                </div>
+                                
+                                <div id="custom-date-range" class="custom-range hidden">
+                                    <div class="date-input-group">
+                                        <input type="date" id="date-from" class="date-input">
+                                        <span class="date-separator">至</span>
+                                        <input type="date" id="date-to" class="date-input">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="filter-group">
+                                <label class="filter-label">
+                                    <i class="fas fa-filter"></i> 高级筛选
+                                </label>
+                                <div class="filter-inputs">
+                                    <div class="filter-input">
+                                        <i class="fas fa-barcode"></i>
+                                        <input type="text" id="goods-id-filter" 
+                                               placeholder="货号筛选">
+                                    </div>
+                                    <div class="filter-input">
+                                        <i class="fas fa-user-tag"></i>
+                                        <input type="text" id="submitter-filter" 
+                                               placeholder="提交人筛选">
+                                    </div>
+                                    <select id="status-filter" class="filter-select">
+                                        <option value="all">全部状态</option>
+                                        <option value="已上架未卖出">已上架未卖出</option>
+                                        <option value="被退回（有瑕疵等）">被退回</option>
+                                        <option value="已下架">已下架</option>
+                                        <option value="已卖出">已卖出</option>
+                                    </select>
+                                </div>
+                            </div>
                         </div>
                         
-                        <div class="form-group">
-                            <label for="profit"><i class="fas fa-chart-line"></i> 利润（自动计算）</label>
-                            <input type="text" id="profit" readonly class="profit-display">
+                        <div class="filter-actions">
+                            <button id="apply-filters" class="btn btn-primary">
+                                <i class="fas fa-check"></i>
+                                <span>应用筛选</span>
+                            </button>
+                            <button id="reset-filters" class="btn btn-secondary">
+                                <i class="fas fa-redo-alt"></i>
+                                <span>重置筛选</span>
+                            </button>
+                            <div class="view-toggle">
+                                <label class="toggle-label">
+                                    <i class="fas fa-table"></i> 视图模式
+                                </label>
+                                <select id="view-mode" class="view-select">
+                                    <option value="timeline">时间线</option>
+                                    <option value="grouped">按货号</option>
+                                    <option value="monthly">按月汇总</option>
+                                    <option value="table">详细表格</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 统计概览 -->
+                    <div class="stats-overview">
+                        <div class="stat-card">
+                            <div class="stat-icon-wrapper primary">
+                                <i class="fas fa-list-ol"></i>
+                            </div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="total-records">0</div>
+                                <div class="stat-label">总记录数</div>
+                                <div class="stat-change positive">
+                                    <i class="fas fa-arrow-up"></i>
+                                    <span>+0 今日</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-icon-wrapper success">
+                                <i class="fas fa-money-bill-wave"></i>
+                            </div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="total-profit">¥0</div>
+                                <div class="stat-label">总利润</div>
+                                <div class="stat-change positive">
+                                    <i class="fas fa-arrow-up"></i>
+                                    <span>+¥0 今日</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-icon-wrapper warning">
+                                <i class="fas fa-shopping-cart"></i>
+                            </div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="total-cost-sum">¥0</div>
+                                <div class="stat-label">总成本</div>
+                                <div class="stat-change">
+                                    <i class="fas fa-minus"></i>
+                                    <span>¥0 今日</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="stat-card">
+                            <div class="stat-icon-wrapper info">
+                                <i class="fas fa-percentage"></i>
+                            </div>
+                            <div class="stat-content">
+                                <div class="stat-value" id="avg-profit-margin">0%</div>
+                                <div class="stat-label">平均利润率</div>
+                                <div class="stat-change">
+                                    <i class="fas fa-chart-line"></i>
+                                    <span>趋势分析</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- 数据表格区域 -->
+                    <div class="data-section">
+                        <div class="section-header">
+                            <h3><i class="fas fa-table"></i> 数据记录</h3>
+                            <div class="section-actions">
+                                <button id="export-data" class="btn btn-icon">
+                                    <i class="fas fa-download"></i>
+                                    <span>导出数据</span>
+                                </button>
+                                <button id="refresh-data" class="btn btn-icon">
+                                    <i class="fas fa-sync-alt"></i>
+                                    <span>刷新</span>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="data-container">
+                            <div id="records-table" class="records-container">
+                                <div class="loading-state">
+                                    <div class="loading-spinner">
+                                        <div class="spinner-circle"></div>
+                                    </div>
+                                    <p>正在加载数据...</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
-                
-                <div class="form-group">
-                    <label for="submitter"><i class="fas fa-user-edit"></i> 提交人（选填）</label>
-                    <input type="text" id="submitter" placeholder="可不填写直接提交">
-                </div>
-                
-                <div class="form-group">
-                    <label for="remark"><i class="fas fa-comment"></i> 备注</label>
-                    <textarea id="remark" rows="2" placeholder="用于特殊说明"></textarea>
-                </div>
-                
-                <div class="form-actions">
-                    <button type="submit" class="btn-submit">
-                        <i class="fas fa-paper-plane"></i> 提交记录
-                    </button>
-                    <button type="button" id="reset-form" class="btn-reset">
-                        <i class="fas fa-redo"></i> 重置表单
-                    </button>
-                </div>
-            </form>
-            
-            <div id="form-message" class="message hidden"></div>
-        </div>
+            </div>
+        </main>
 
-        <!-- 记账人视图：数据查看与分析 -->
-        <div id="accountant-view" class="view">
-            <div class="accountant-header">
-                <h1><i class="fas fa-chart-pie"></i> 账本数据分析</h1>
-                
-                <!-- 筛选控件 -->
-                <div class="filters">
-                    <div class="filter-group">
-                        <label><i class="fas fa-calendar-alt"></i> 时间筛选</label>
-                        <select id="time-filter">
-                            <option value="all">全部时间</option>
-                            <option value="today">今天</option>
-                            <option value="week">本周</option>
-                            <option value="month">本月</option>
-                            <option value="year">今年</option>
-                            <option value="custom">自定义范围</option>
-                        </select>
-                    </div>
-                    
-                    <div id="custom-date-range" class="filter-group hidden">
-                        <label>从</label>
-                        <input type="date" id="date-from">
-                        <label>到</label>
-                        <input type="date" id="date-to">
-                    </div>
-                    
-                    <div class="filter-group">
-                        <label><i class="fas fa-filter"></i> 货号筛选</label>
-                        <input type="text" id="goods-id-filter" placeholder="输入货号筛选">
-                    </div>
-                    
-                    <div class="filter-group">
-                        <label><i class="fas fa-list-alt"></i> 状态筛选</label>
-                        <select id="status-filter">
-                            <option value="all">全部状态</option>
-                            <option value="已上架未卖出">已上架未卖出</option>
-                            <option value="被退回（有瑕疵等）">被退回</option>
-                            <option value="已下架">已下架</option>
-                            <option value="已卖出（退款）未到账">已卖出未到账</option>
-                            <option value="已卖出（退款）已到账">已卖出已到账</option>
-                        </select>
-                    </div>
-                    
-                    <div class="filter-group">
-                        <label><i class="fas fa-user"></i> 提交人筛选</label>
-                        <input type="text" id="submitter-filter" placeholder="输入提交人筛选">
-                    </div>
-                    
-                    <div class="filter-group">
-                        <label><i class="fas fa-eye"></i> 视图模式</label>
-                        <select id="view-mode">
-                            <option value="timeline">时间线视图</option>
-                            <option value="grouped">按货号分组</option>
-                            <option value="monthly">按月汇总</option>
-                        </select>
-                    </div>
-                    
-                    <button id="apply-filters" class="btn-filter">
-                        <i class="fas fa-check"></i> 应用筛选
-                    </button>
-                    <button id="reset-filters" class="btn-reset">
-                        <i class="fas fa-redo"></i> 重置
-                    </button>
+        <!-- 底部信息栏 -->
+        <footer class="footer">
+            <div class="footer-content">
+                <div class="footer-info">
+                    <i class="fas fa-database"></i>
+                    <span>数据实时同步 | </span>
+                    <span id="last-sync">刚刚同步</span>
+                </div>
+                <div class="footer-credits">
+                    <span>货品管理账本系统 v2.0</span>
+                    <span class="separator">•</span>
+                    <span>GitHub Pages + Supabase</span>
                 </div>
             </div>
-            
-            <!-- 统计信息 -->
-            <div class="stats-container">
-                <div class="stat-card">
-                    <div class="stat-icon">
-                        <i class="fas fa-list"></i>
-                    </div>
-                    <div class="stat-info">
-                        <div class="stat-value" id="total-records">0</div>
-                        <div class="stat-label">总记录数</div>
-                    </div>
-                </div>
-                
-                <div class="stat-card">
-                    <div class="stat-icon profit">
-                        <i class="fas fa-money-bill-wave"></i>
-                    </div>
-                    <div class="stat-info">
-                        <div class="stat-value" id="total-profit">¥0.00</div>
-                        <div class="stat-label">总利润</div>
-                    </div>
-                </div>
-                
-                <div class="stat-card">
-                    <div class="stat-icon cost">
-                        <i class="fas fa-shopping-cart"></i>
-                    </div>
-                    <div class="stat-info">
-                        <div class="stat-value" id="total-cost-sum">¥0.00</div>
-                        <div class="stat-label">总成本</div>
-                    </div>
-                </div>
-                
-                <div class="stat-card">
-                    <div class="stat-icon">
-                        <i class="fas fa-percentage"></i>
-                    </div>
-                    <div class="stat-info">
-                        <div class="stat-value" id="avg-profit-margin">0%</div>
-                        <div class="stat-label">平均利润率</div>
-                    </div>
-                </div>
+        </footer>
+    </div>
+
+    <!-- 通知弹窗 -->
+    <div id="notification" class="notification hidden">
+        <div class="notification-content">
+            <div class="notification-icon">
+                <i class="fas fa-check-circle"></i>
             </div>
-            
-            <!-- 数据表格 -->
-            <div class="table-container">
-                <div class="table-header">
-                    <h3><i class="fas fa-table"></i> 记录列表</h3>
-                    <div class="table-actions">
-                        <button id="export-data" class="btn-small">
-                            <i class="fas fa-download"></i> 导出数据
-                        </button>
-                        <button id="refresh-data" class="btn-small">
-                            <i class="fas fa-sync-alt"></i> 刷新
-                        </button>
-                    </div>
-                </div>
-                
-                <div id="records-table" class="records-table">
-                    <!-- 数据将通过JavaScript动态加载 -->
-                    <div class="loading">加载数据中...</div>
-                </div>
+            <div class="notification-text">
+                <h4 class="notification-title">操作成功</h4>
+                <p class="notification-message">记录已提交成功</p>
             </div>
+            <button class="notification-close">
+                <i class="fas fa-times"></i>
+            </button>
         </div>
     </div>
 
