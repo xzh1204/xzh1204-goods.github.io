@@ -1,1228 +1,1855 @@
-// Supabase配置 - 需要替换为你的实际配置
-const SUPABASE_URL = 'https://gbsqrtaooovsxnwftkbk.supabase.co'; // 替换为你的Supabase URL
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdic3FydGFvb292c3hud2Z0a2JrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ3NjM3ODcsImV4cCI6MjA4MDMzOTc4N30.FKUrAR1qr5bSNEJMomU24aYFDK-fep3eNjZY1n8QgN4'; // 替换为你的Supabase anon public key
+// script.js - 货品管理账本专业版主逻辑
 
-// 初始化Supabase客户端
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-// 全局状态
-let currentView = 'partner';
-let goodsHistory = [];
-let allRecords = [];
-
-// DOM元素缓存
-const elements = {
-    // 角色切换
-    roleOptions: document.querySelectorAll('.role-option'),
-    partnerView: document.getElementById('partner-view'),
-    accountantView: document.getElementById('accountant-view'),
-    
-    // 表单元素
-    goodsForm: document.getElementById('goods-form'),
-    goodsIdInput: document.getElementById('goods-id'),
-    goodsNameInput: document.getElementById('goods-name'),
-    unitPriceInput: document.getElementById('unit-price'),
-    quantityInput: document.getElementById('quantity'),
-    shippingFeeInput: document.getElementById('shipping-fee'),
-    actualIncomeInput: document.getElementById('actual-income'),
-    remarkInput: document.getElementById('remark'),
-    submitterInput: document.getElementById('submitter'),
-    statusInput: document.getElementById('status'),
-    statusOptions: document.querySelectorAll('.status-option'),
-    shippingNoteInput: document.getElementById('shipping-note'),
-    
-    // 显示元素
-    totalCostDisplay: document.getElementById('total-cost-display'),
-    profitDisplay: document.getElementById('profit-display'),
-    incomeBreakdown: document.getElementById('income-breakdown'),
-    costBreakdown: document.getElementById('cost-breakdown'),
-    shippingBreakdown: document.getElementById('shipping-breakdown'),
-    shippingFeePreview: document.getElementById('shipping-fee-preview'),
-    suggestions: document.getElementById('suggestions'),
-    
-    // 按钮
-    resetFormBtn: document.getElementById('reset-form'),
-    applyFiltersBtn: document.getElementById('apply-filters'),
-    resetFiltersBtn: document.getElementById('reset-filters'),
-    exportDataBtn: document.getElementById('export-data'),
-    refreshDataBtn: document.getElementById('refresh-data'),
-    
-    // 筛选元素
-    timeFilterTabs: document.querySelectorAll('.time-tab'),
-    goodsIdFilter: document.getElementById('goods-id-filter'),
-    submitterFilter: document.getElementById('submitter-filter'),
-    statusFilter: document.getElementById('status-filter'),
-    viewModeSelect: document.getElementById('view-mode'),
-    dateFromInput: document.getElementById('date-from'),
-    dateToInput: document.getElementById('date-to'),
-    
-    // 统计元素
-    totalRecordsEl: document.getElementById('total-records'),
-    totalProfitEl: document.getElementById('total-profit'),
-    totalCostSumEl: document.getElementById('total-cost-sum'),
-    avgProfitMarginEl: document.getElementById('avg-profit-margin'),
-    liveRecordCount: document.getElementById('live-record-count'),
-    liveProfitToday: document.getElementById('live-profit-today'),
-    
-    // 其他
-    lastSync: document.getElementById('last-sync'),
-    notification: document.getElementById('notification'),
-    formMessage: document.getElementById('form-message'),
-    recordsTable: document.getElementById('records-table')
+// ========== 全局变量和初始化 ==========
+let currentRecords = [];
+let allGoodsRecords = [];
+let currentFilters = {
+    period: 'all',
+    startDate: null,
+    endDate: null,
+    goodsId: '',
+    status: '',
+    submitter: ''
 };
+let currentPage = 1;
+let pageSize = 20;
+let totalPages = 1;
+let supabase = null;
+let selectedGoodsId = null;
+let isUpdateMode = false;
+let goodsTemplates = {};
 
-// 页面加载完成后初始化
-document.addEventListener('DOMContentLoaded', async function() {
-    initializeApp();
-    setupEventListeners();
-    
-    // 设置默认日期
-    const today = new Date().toISOString().split('T')[0];
-    elements.dateFromInput.value = today;
-    elements.dateToInput.value = today;
-    
-    // 加载数据
-    await loadGoodsHistory();
-    await loadRecords();
-    
-    // 更新实时统计
-    updateLiveStats();
-    
-    // 如果是测试模式，显示提示
-    if (SUPABASE_URL.includes('your-project') || SUPABASE_ANON_KEY.includes('your-anon-key')) {
-        showNotification('测试模式', '当前使用本地存储模式，请配置Supabase获得完整功能', 'warning');
-    }
+// 等待DOM加载完成后初始化
+document.addEventListener('DOMContentLoaded', function() {
+    initApp();
 });
 
 // 初始化应用
-function initializeApp() {
-    // 设置动画延迟
-    document.querySelectorAll('.form-section').forEach((section, index) => {
-        section.style.setProperty('--i', index);
+function initApp() {
+    // 获取Supabase客户端
+    supabase = window.supabaseClient;
+    
+    // 初始化日期选择器
+    initDatePickers();
+    
+    // 初始化事件监听
+    initEventListeners();
+    
+    // 初始化表单计算
+    initFormCalculations();
+    
+    // 加载现有记录
+    loadAllRecords();
+    
+    // 加载货号模板
+    loadGoodsTemplates();
+    
+    // 更新最后同步时间
+    updateLastSyncTime();
+    
+    // 设置自动刷新（每60秒）
+    setInterval(loadAllRecords, 60000);
+    
+    // 检查URL参数
+    checkUrlParams();
+}
+
+// 初始化日期选择器
+function initDatePickers() {
+    flatpickr("#startDate", {
+        dateFormat: "Y-m-d",
+        maxDate: "today",
+        onChange: function(selectedDates, dateStr) {
+            currentFilters.startDate = dateStr;
+        }
+    });
+    
+    flatpickr("#endDate", {
+        dateFormat: "Y-m-d",
+        maxDate: "today",
+        onChange: function(selectedDates, dateStr) {
+            currentFilters.endDate = dateStr;
+        }
     });
 }
 
-// 设置事件监听器
-function setupEventListeners() {
+// ========== 事件监听器初始化 ==========
+function initEventListeners() {
     // 角色切换
-    elements.roleOptions.forEach(option => {
-        option.addEventListener('click', () => {
-            const role = option.dataset.role;
-            switchView(role);
-        });
-    });
-
-    // 合伙人视图事件
-    setupPartnerViewListeners();
+    document.getElementById('roleSubmitBtn').addEventListener('click', () => switchRole('submit'));
+    document.getElementById('roleViewBtn').addEventListener('click', () => switchRole('view'));
     
-    // 记账人视图事件
-    setupAccountantViewListeners();
+    // 表单模式切换
+    document.getElementById('modeNew').addEventListener('click', () => switchFormMode('new'));
+    document.getElementById('modeUpdate').addEventListener('click', () => switchFormMode('update'));
     
-    // 表单提交
-    elements.goodsForm.addEventListener('submit', handleFormSubmit);
+    // 货号搜索
+    document.getElementById('searchGoodsBtn').addEventListener('click', searchGoods);
+    document.getElementById('goodsIdSearch').addEventListener('input', handleGoodsSearchInput);
+    document.getElementById('goodsIdSearch').addEventListener('change', handleGoodsSelect);
     
-    // 重置表单
-    elements.resetFormBtn.addEventListener('click', resetForm);
+    // 表单相关
+    document.getElementById('goodsForm').addEventListener('submit', handleFormSubmit);
+    document.getElementById('resetBtn').addEventListener('click', resetForm);
+    // 移除运费计算按钮监听，改为自动计算
+    document.getElementById('shippingExpr').addEventListener('input', calculateShippingAuto);
+    document.getElementById('saveTemplateBtn').addEventListener('click', saveGoodsTemplate);
     
-    // 应用筛选
-    elements.applyFiltersBtn.addEventListener('click', loadRecords);
-    
-    // 重置筛选
-    elements.resetFiltersBtn.addEventListener('click', resetFilters);
-    
-    // 导出数据
-    elements.exportDataBtn.addEventListener('click', exportData);
-    
-    // 刷新数据
-    elements.refreshDataBtn.addEventListener('click', () => {
-        loadRecords();
-        showNotification('数据刷新', '数据已成功刷新', 'success');
+    // 查看记录相关
+    document.getElementById('refreshBtn').addEventListener('click', () => {
+        loadAllRecords();
+        showMessage('正在刷新数据...', 'info');
     });
     
-    // 时间筛选标签
-    elements.timeFilterTabs.forEach(tab => {
-        tab.addEventListener('click', () => {
-            elements.timeFilterTabs.forEach(t => t.classList.remove('active'));
-            tab.classList.add('active');
-            
-            const range = tab.dataset.range;
-            const customRange = document.getElementById('custom-date-range');
-            customRange.classList.toggle('hidden', range !== 'custom');
-            
-            if (range !== 'custom') {
-                loadRecords();
-            }
-        });
-    });
-}
-
-// 设置合伙人视图事件监听
-function setupPartnerViewListeners() {
-    // 状态选项选择
-    elements.statusOptions.forEach(option => {
-        option.addEventListener('click', function() {
-            // 移除其他选项的激活状态
-            elements.statusOptions.forEach(opt => opt.classList.remove('active'));
-            
-            // 设置当前选项为激活状态
+    // 时间筛选
+    document.querySelectorAll('.time-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            document.querySelectorAll('.time-btn').forEach(b => b.classList.remove('active'));
             this.classList.add('active');
-            
-            // 更新隐藏的输入框值
-            elements.statusInput.value = this.dataset.value;
-            
-            // 检查是否为卖出状态
-            const isSoldStatus = this.dataset.value.includes('已卖出');
-            const soldFields = document.getElementById('sold-fields');
-            
-            if (isSoldStatus) {
-                soldFields.classList.remove('hidden');
-                elements.actualIncomeInput.required = true;
-                calculateProfit(); // 立即计算利润
-            } else {
-                soldFields.classList.add('hidden');
-                elements.actualIncomeInput.required = false;
-                elements.actualIncomeInput.value = '';
-                updateProfitDisplay(0);
-            }
+            currentFilters.period = this.dataset.period;
+            applyFilters();
         });
     });
-
-    // 智能货号搜索
-    elements.goodsIdInput.addEventListener('input', function() {
-        const query = this.value.trim();
-        if (query.length >= 2) {
-            showGoodsSuggestions(query);
-        } else {
-            hideSuggestions();
-        }
-    });
-
-    // 计算总价
-    elements.unitPriceInput.addEventListener('input', calculateTotalCost);
-    elements.quantityInput.addEventListener('input', calculateTotalCost);
     
-    // 运费实时计算
-    elements.shippingFeeInput.addEventListener('input', function() {
-        const fee = calculateShippingFee();
-        updateShippingFeePreview(fee);
-        
-        if (elements.statusInput.value.includes('已卖出')) {
-            calculateProfit();
-        }
+    // 日期范围
+    document.getElementById('applyDateRange').addEventListener('click', applyDateRange);
+    
+    // 高级筛选
+    document.getElementById('filterGoodsId').addEventListener('input', applyFilters);
+    document.getElementById('filterStatus').addEventListener('change', applyFilters);
+    document.getElementById('filterSubmitter').addEventListener('input', applyFilters);
+    document.getElementById('clearFilters').addEventListener('click', clearAllFilters);
+    
+    // 视图标签
+    document.querySelectorAll('.view-tab').forEach(tab => {
+        tab.addEventListener('click', function() {
+            document.querySelectorAll('.view-tab').forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+            displayRecordsByView(this.dataset.view);
+        });
     });
     
-    // 实际收入变化计算利润
-    elements.actualIncomeInput.addEventListener('input', calculateProfit);
+    // 分页
+    document.getElementById('prevPage').addEventListener('click', () => changePage(currentPage - 1));
+    document.getElementById('nextPage').addEventListener('click', () => changePage(currentPage + 1));
     
-    // 点击外部关闭建议框
-    document.addEventListener('click', function(e) {
-        if (!elements.goodsIdInput.contains(e.target) && 
-            !elements.suggestions.contains(e.target)) {
-            hideSuggestions();
-        }
-    });
+    // 导出操作
+    document.getElementById('copyAllBtn').addEventListener('click', copyFilteredRecords);
+    document.getElementById('exportExcelBtn').addEventListener('click', exportToExcel);
+    document.getElementById('printBtn').addEventListener('click', printRecords);
+    
+    // 批量操作
+    document.getElementById('batchDeleteBtn').addEventListener('click', batchDeleteRecords);
+    
+    // 模态框
+    document.querySelector('.modal-close').addEventListener('click', closeGoodsDetailModal);
+    document.getElementById('overlay').addEventListener('click', closeGoodsDetailModal);
+    
+    // 状态选择变化监听
+    document.getElementById('status').addEventListener('change', handleStatusChange);
+    
+    // 月份选择器
+    document.getElementById('monthSelector').addEventListener('change', loadMonthlyStats);
 }
 
-// 设置记账人视图事件监听
-function setupAccountantViewListeners() {
-    // 自定义日期范围变化
-    elements.dateFromInput.addEventListener('change', () => {
-        if (document.querySelector('.time-tab.active').dataset.range === 'custom') {
-            loadRecords();
-        }
-    });
-    
-    elements.dateToInput.addEventListener('change', () => {
-        if (document.querySelector('.time-tab.active').dataset.range === 'custom') {
-            loadRecords();
-        }
-    });
-    
-    // 视图模式变化
-    elements.viewModeSelect.addEventListener('change', loadRecords);
-}
-
-// 切换视图
-function switchView(view) {
-    currentView = view;
-    
-    // 更新角色选项状态
-    elements.roleOptions.forEach(option => {
-        option.classList.toggle('active', option.dataset.role === view);
-    });
-    
-    // 切换视图显示
-    elements.partnerView.classList.toggle('active-view', view === 'partner');
-    elements.accountantView.classList.toggle('active-view', view === 'accountant');
-    
-    // 如果是记账人视图，刷新数据
-    if (view === 'accountant') {
-        loadRecords();
-        updateLiveStats();
+// 检查URL参数
+function checkUrlParams() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const goodsId = urlParams.get('goods_id');
+    if (goodsId) {
+        // 自动切换到查看模式并筛选该货号
+        switchRole('view');
+        document.getElementById('filterGoodsId').value = goodsId;
+        currentFilters.goodsId = goodsId;
+        applyFilters();
     }
 }
 
-// 显示商品建议
-function showGoodsSuggestions(query) {
-    const filtered = goodsHistory.filter(item =>
-        item.goods_id.toLowerCase().includes(query.toLowerCase()) ||
-        item.goods_name.toLowerCase().includes(query.toLowerCase())
-    ).slice(0, 5);
+// ========== 表单模式切换 ==========
+function switchFormMode(mode) {
+    const newBtn = document.getElementById('modeNew');
+    const updateBtn = document.getElementById('modeUpdate');
     
-    if (filtered.length === 0) {
-        hideSuggestions();
+    if (mode === 'new') {
+        newBtn.classList.add('active');
+        updateBtn.classList.remove('active');
+        isUpdateMode = false;
+        resetForm();
+        document.getElementById('goodsIdSearch').placeholder = '输入新货号';
+        showMessage('新建记录模式：请输入新货号创建记录', 'info');
+    } else {
+        newBtn.classList.remove('active');
+        updateBtn.classList.add('active');
+        isUpdateMode = true;
+        resetForm();
+        document.getElementById('goodsIdSearch').placeholder = '搜索已有货号进行更新';
+        showMessage('更新模式：搜索已有货号更新状态', 'info');
+    }
+}
+
+// ========== 货号搜索与自动填充 ==========
+function handleGoodsSearchInput() {
+    const searchValue = document.getElementById('goodsIdSearch').value;
+    if (searchValue.length >= 2) {
+        updateGoodsList(searchValue);
+    }
+}
+
+function updateGoodsList(searchTerm) {
+    const goodsList = document.getElementById('goodsList');
+    goodsList.innerHTML = '';
+    
+    // 从模板中搜索
+    const matchedGoods = Object.keys(goodsTemplates).filter(goodsId => 
+        goodsId.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    
+    matchedGoods.forEach(goodsId => {
+        const option = document.createElement('option');
+        option.value = goodsId;
+        option.textContent = `${goodsId} - ${goodsTemplates[goodsId].name || '未命名'}`;
+        goodsList.appendChild(option);
+    });
+}
+
+function handleGoodsSelect() {
+    const selectedValue = document.getElementById('goodsIdSearch').value;
+    if (selectedValue && goodsTemplates[selectedValue]) {
+        // 找到匹配的货号模板，自动填充
+        fillFormFromTemplate(selectedValue);
+    } else if (selectedValue && !isUpdateMode) {
+        // 新货号，只填充货号字段
+        document.getElementById('goodsId').value = selectedValue;
+    }
+}
+
+function searchGoods() {
+    const searchValue = document.getElementById('goodsIdSearch').value.trim();
+    if (!searchValue) {
+        showMessage('请输入货号进行搜索', 'error');
         return;
     }
     
-    elements.suggestions.innerHTML = filtered.map(item => `
-        <div class="suggestion-item" data-goods-id="${item.goods_id}" 
-             data-goods-name="${item.goods_name}" data-unit-price="${item.unit_price}">
-            <i class="fas fa-box suggestion-icon"></i>
-            <div>
-                <div class="suggestion-title">${item.goods_id} - ${item.goods_name}</div>
-                <div class="suggestion-subtitle">最近单价: ¥${item.unit_price.toFixed(2)}</div>
-            </div>
-        </div>
-    `).join('');
-    
-    elements.suggestions.classList.add('active');
-    
-    // 添加点击事件
-    elements.suggestions.querySelectorAll('.suggestion-item').forEach(item => {
-        item.addEventListener('click', function() {
-            const goodsId = this.dataset.goodsId;
-            const goodsName = this.dataset.goodsName;
-            const unitPrice = this.dataset.unitPrice;
+    if (goodsTemplates[searchValue]) {
+        // 找到模板，自动填充
+        fillFormFromTemplate(searchValue);
+        showMessage(`找到货号 "${searchValue}"，已自动填充信息`, 'success');
+    } else if (isUpdateMode) {
+        // 更新模式下搜索数据库
+        searchGoodsInDatabase(searchValue);
+    } else {
+        // 新建模式，设置货号
+        document.getElementById('goodsId').value = searchValue;
+        document.getElementById('goodsName').value = '';
+        showMessage('未找到该货号的模板，请输入码数/款式', 'info');
+    }
+}
+
+function searchGoodsInDatabase(goodsId) {
+    // 从Supabase搜索该货号的记录
+    supabase
+        .from('goods_records')
+        .select('*')
+        .eq('goods_id', goodsId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .then(({ data, error }) => {
+            if (error) {
+                console.error('搜索失败:', error);
+                showMessage('搜索失败，请稍后重试', 'error');
+                return;
+            }
             
-            elements.goodsIdInput.value = goodsId;
-            elements.goodsNameInput.value = goodsName;
-            elements.unitPriceInput.value = unitPrice;
-            
-            hideSuggestions();
-            calculateTotalCost();
-            
-            // 触发输入事件以显示其他可能的相关信息
-            elements.goodsIdInput.dispatchEvent(new Event('input'));
+            if (data && data.length > 0) {
+                const latestRecord = data[0];
+                fillFormFromRecord(latestRecord);
+                showMessage(`找到货号 "${goodsId}" 的最新记录，已自动填充`, 'success');
+            } else {
+                showMessage(`未找到货号 "${goodsId}" 的记录`, 'error');
+            }
         });
-    });
 }
 
-// 隐藏建议框
-function hideSuggestions() {
-    elements.suggestions.classList.remove('active');
-    elements.suggestions.innerHTML = '';
+function fillFormFromTemplate(goodsId) {
+    const template = goodsTemplates[goodsId];
+    document.getElementById('goodsId').value = goodsId;
+    document.getElementById('goodsName').value = template.name || '';
+    document.getElementById('unitPrice').value = template.unit_price || '';
+    document.getElementById('shippingExpr').value = template.shipping_fee || '';
+    document.getElementById('shippingNote').value = template.shipping_note || '';
+    
+    // 触发计算
+    document.getElementById('unitPrice').dispatchEvent(new Event('input'));
+    calculateShippingAuto();
+    
+    // 如果是更新模式，不修改状态，让用户选择新状态
+    if (!isUpdateMode) {
+        document.getElementById('status').value = template.last_status || '';
+        handleStatusChange();
+    }
 }
 
-// 计算总价
-function calculateTotalCost() {
-    const unitPrice = parseFloat(elements.unitPriceInput.value) || 0;
-    const quantity = parseInt(elements.quantityInput.value) || 1;
-    const totalCost = unitPrice * quantity;
+function fillFormFromRecord(record) {
+    document.getElementById('goodsId').value = record.goods_id;
+    document.getElementById('goodsName').value = record.goods_name || '';
+    document.getElementById('unitPrice').value = record.unit_price || '';
+    document.getElementById('quantity').value = record.quantity || 1;
+    document.getElementById('shippingExpr').value = record.shipping_fee || '';
+    document.getElementById('shippingNote').value = record.shipping_note || '';
+    document.getElementById('actualIncome').value = record.actual_income || '';
+    document.getElementById('remark').value = record.remark || '';
     
-    elements.totalCostDisplay.textContent = `¥${totalCost.toFixed(2)}`;
+    // 触发计算
+    document.getElementById('unitPrice').dispatchEvent(new Event('input'));
+    calculateShippingAuto();
     
-    // 更新利润计算的成本部分
-    updateCostBreakdown(totalCost);
+    // 如果是更新模式，不自动选择状态
+    if (!isUpdateMode) {
+        document.getElementById('status').value = record.status || '';
+        handleStatusChange();
+    }
+}
+
+// ========== 表单计算逻辑 ==========
+function initFormCalculations() {
+    const unitPriceInput = document.getElementById('unitPrice');
+    const quantityInput = document.getElementById('quantity');
     
-    if (elements.statusInput.value.includes('已卖出')) {
-        calculateProfit();
+    // 自动计算总价
+    function calculateTotalCost() {
+        const unitPrice = parseFloat(unitPriceInput.value) || 0;
+        const quantity = parseInt(quantityInput.value) || 1;
+        const totalCost = unitPrice * quantity;
+        document.getElementById('totalCost').value = totalCost.toFixed(2);
+        
+        // 如果已经填写收入，重新计算利润
+        if (document.getElementById('incomeSection').style.display !== 'none') {
+            calculateProfit();
+        }
     }
     
-    return totalCost;
+    unitPriceInput.addEventListener('input', calculateTotalCost);
+    quantityInput.addEventListener('input', calculateTotalCost);
+    
+    // 初始计算
+    calculateTotalCost();
 }
 
-// 计算运费
-function calculateShippingFee() {
-    const feeExpression = elements.shippingFeeInput.value.trim();
-    
-    if (!feeExpression) {
-        return 0;
-    }
+// 运费自动计算
+function calculateShippingAuto() {
+    const shippingExpr = document.getElementById('shippingExpr');
+    const shippingFeeInput = document.getElementById('shippingFee');
     
     try {
-        // 安全地计算数学表达式，只允许基本算术运算
-        const sanitized = feeExpression.replace(/[^-()\d/*+.\s]/g, '');
-        const fee = eval(sanitized);
-        return isNaN(fee) ? 0 : parseFloat(fee.toFixed(2));
+        const expr = shippingExpr.value.trim();
+        if (!expr) {
+            shippingFeeInput.value = '0';
+            // 重新计算利润
+            if (document.getElementById('incomeSection').style.display !== 'none') {
+                calculateProfit();
+            }
+            return;
+        }
+        
+        // 安全计算表达式
+        const safeExpr = expr.replace(/[^0-9+\-*/().\s]/g, '');
+        if (!safeExpr) {
+            shippingFeeInput.value = '0';
+            return;
+        }
+        
+        // 使用 Function 构造函数进行安全计算
+        const result = Function('"use strict"; return (' + safeExpr + ')')();
+        
+        if (isNaN(result) || !isFinite(result)) {
+            throw new Error('计算结果无效');
+        }
+        
+        const roundedResult = parseFloat(result.toFixed(2));
+        shippingFeeInput.value = roundedResult;
+        
+        // 重新计算利润
+        if (document.getElementById('incomeSection').style.display !== 'none') {
+            calculateProfit();
+        }
     } catch (error) {
-        return 0;
+        // 如果计算失败，尝试直接解析数字
+        const numValue = parseFloat(shippingExpr.value);
+        if (!isNaN(numValue) && isFinite(numValue)) {
+            const roundedValue = parseFloat(numValue.toFixed(2));
+            shippingFeeInput.value = roundedValue;
+            
+            // 重新计算利润
+            if (document.getElementById('incomeSection').style.display !== 'none') {
+                calculateProfit();
+            }
+        } else {
+            shippingFeeInput.value = '0';
+        }
     }
 }
 
-// 更新运费预览
-function updateShippingFeePreview(fee) {
-    const preview = elements.shippingFeePreview.querySelector('span');
-    preview.textContent = fee.toFixed(2);
-    
-    // 根据运费值添加视觉反馈
-    if (fee > 10) {
-        elements.shippingFeePreview.style.background = 'rgba(248, 150, 30, 0.1)';
-        elements.shippingFeePreview.style.color = 'var(--warning-color)';
-    } else {
-        elements.shippingFeePreview.style.background = '';
-        elements.shippingFeePreview.style.color = '';
-    }
-    
-    updateShippingBreakdown(fee);
-    return fee;
-}
-
-// 计算利润
+// 利润计算
 function calculateProfit() {
-    const totalCost = parseFloat(elements.unitPriceInput.value || 0) * parseInt(elements.quantityInput.value || 1);
-    const shippingFee = calculateShippingFee();
-    const actualIncome = parseFloat(elements.actualIncomeInput.value) || 0;
-    
+    const totalCost = parseFloat(document.getElementById('totalCost').value) || 0;
+    const shippingFee = parseFloat(document.getElementById('shippingFee').value) || 0;
+    const actualIncome = parseFloat(document.getElementById('actualIncome').value) || 0;
     const profit = actualIncome - totalCost - shippingFee;
-    updateProfitDisplay(profit);
     
-    return profit;
-}
-
-// 更新利润显示
-function updateProfitDisplay(profit) {
-    const profitAmount = elements.profitDisplay.querySelector('.profit-amount');
-    const profitTrend = elements.profitDisplay.querySelector('.profit-trend');
-    const profitIcon = profitTrend.querySelector('i');
-    const profitPercent = profitTrend.querySelector('span');
+    const profitDisplay = document.getElementById('profitDisplay');
+    profitDisplay.value = profit.toFixed(2);
     
-    profitAmount.textContent = `¥${profit.toFixed(2)}`;
-    
-    // 计算利润率
-    const totalCost = parseFloat(elements.unitPriceInput.value || 0) * parseInt(elements.quantityInput.value || 1);
-    const actualIncome = parseFloat(elements.actualIncomeInput.value) || 0;
-    const margin = actualIncome > 0 ? (profit / actualIncome * 100) : 0;
-    
-    profitPercent.textContent = `${margin.toFixed(1)}%`;
-    
-    // 根据利润正负设置样式
+    // 设置颜色
+    profitDisplay.classList.remove('positive', 'negative');
     if (profit > 0) {
-        profitAmount.style.color = 'var(--success-color)';
-        profitTrend.style.color = 'var(--success-color)';
-        profitIcon.className = 'fas fa-arrow-up';
-        profitTrend.classList.add('positive');
-        profitTrend.classList.remove('negative');
+        profitDisplay.classList.add('positive');
     } else if (profit < 0) {
-        profitAmount.style.color = 'var(--danger-color)';
-        profitTrend.style.color = 'var(--danger-color)';
-        profitIcon.className = 'fas fa-arrow-down';
-        profitTrend.classList.add('negative');
-        profitTrend.classList.remove('positive');
+        profitDisplay.classList.add('negative');
     } else {
-        profitAmount.style.color = 'var(--gray-700)';
-        profitTrend.style.color = 'var(--gray-700)';
-        profitIcon.className = 'fas fa-minus';
-        profitTrend.classList.remove('positive', 'negative');
+        profitDisplay.classList.remove('positive', 'negative');
     }
 }
 
-// 更新成本分解
-function updateCostBreakdown(cost) {
-    elements.costBreakdown.textContent = `¥${cost.toFixed(2)}`;
-}
-
-// 更新运费分解
-function updateShippingBreakdown(fee) {
-    elements.shippingBreakdown.textContent = `¥${fee.toFixed(2)}`;
-}
-
-// 加载商品历史记录
-async function loadGoodsHistory() {
-    try {
-        const { data, error } = await supabase
-            .from('goods_records')
-            .select('goods_id, goods_name, unit_price')
-            .order('created_at', { ascending: false })
-            .limit(100);
-        
-        if (error) throw error;
-        
-        if (data) {
-            goodsHistory = data;
-            
-            // 去重，只保留每个货号的最新记录
-            const uniqueMap = new Map();
-            data.forEach(item => {
-                if (!uniqueMap.has(item.goods_id)) {
-                    uniqueMap.set(item.goods_id, item);
-                }
-            });
-            
-            goodsHistory = Array.from(uniqueMap.values());
-            localStorage.setItem('goods_history', JSON.stringify(goodsHistory));
-        }
-    } catch (error) {
-        console.error('加载商品历史失败:', error);
-        
-        // 尝试从本地存储加载
-        const localHistory = localStorage.getItem('goods_history');
-        if (localHistory) {
-            goodsHistory = JSON.parse(localHistory);
-        }
-    }
-}
-
-// 处理表单提交
-async function handleFormSubmit(e) {
-    e.preventDefault();
+// 处理状态变化
+function handleStatusChange() {
+    const status = document.getElementById('status').value;
+    const incomeSection = document.getElementById('incomeSection');
     
-    // 显示加载状态
-    const submitBtn = e.target.querySelector('.btn-primary');
-    const loader = submitBtn.querySelector('.submit-loader');
-    loader.classList.remove('hidden');
+    // 如果是卖出状态，显示收入与利润部分
+    if (status.includes('已卖出')) {
+        incomeSection.style.display = 'block';
+        
+        // 添加收入输入事件监听
+        const actualIncomeInput = document.getElementById('actualIncome');
+        if (actualIncomeInput) {
+            actualIncomeInput.addEventListener('input', calculateProfit);
+        }
+        
+        // 立即计算利润
+        calculateProfit();
+    } else {
+        incomeSection.style.display = 'none';
+        // 清空收入字段
+        document.getElementById('actualIncome').value = '';
+        document.getElementById('profitDisplay').value = '';
+        document.getElementById('profitDisplay').classList.remove('positive', 'negative');
+    }
+}
+
+// ========== 表单提交处理 ==========
+async function handleFormSubmit(event) {
+    event.preventDefault();
+    
+    // 验证表单
+    if (!validateForm()) {
+        return;
+    }
+    
+    // 收集表单数据
+    const formData = collectFormData();
+    
+    // 计算利润（如果是卖出状态）
+    if (formData.status.includes('已卖出')) {
+        const totalCost = parseFloat(document.getElementById('totalCost').value) || 0;
+        const shippingFee = parseFloat(document.getElementById('shippingFee').value) || 0;
+        formData.profit = formData.actual_income - totalCost - shippingFee;
+    } else {
+        formData.profit = null;
+    }
+    
+    // 显示提交中状态
+    const submitBtn = document.getElementById('submitBtn');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 提交中...';
     submitBtn.disabled = true;
     
     try {
-        // 收集表单数据
-        const formData = {
-            goods_id: elements.goodsIdInput.value.trim(),
-            goods_name: elements.goodsNameInput.value.trim(),
-            unit_price: parseFloat(elements.unitPriceInput.value),
-            quantity: parseInt(elements.quantityInput.value),
-            total_cost: parseFloat(elements.unitPriceInput.value) * parseInt(elements.quantityInput.value),
-            status: elements.statusInput.value,
-            shipping_fee: calculateShippingFee(),
-            shipping_note: elements.shippingNoteInput.value.trim(),
-            actual_income: elements.statusInput.value.includes('已卖出') ? 
-                          parseFloat(elements.actualIncomeInput.value) : null,
-            profit: elements.statusInput.value.includes('已卖出') ? 
-                   calculateProfit() : null,
-            remark: elements.remarkInput.value.trim(),
-            submitter: elements.submitterInput.value.trim() || null,
-            created_at: new Date().toISOString()
-        };
+        // 提交到Supabase
+        const success = await submitToSupabase(formData);
         
-        // 验证必填字段
-        if (!formData.goods_id || !formData.goods_name || !formData.unit_price || 
-            !formData.status || isNaN(formData.shipping_fee)) {
-            throw new Error('请填写所有必填字段');
+        if (success) {
+            showMessage('✅ 记录提交成功！数据已保存至云端。', 'success');
+            
+            // 保存为模板
+            saveGoodsTemplateToLocal(formData);
+            
+            // 重置表单
+            resetForm();
+            
+            // 如果是更新模式，自动切换到查看模式
+            if (isUpdateMode) {
+                setTimeout(() => {
+                    switchRole('view');
+                    loadAllRecords();
+                }, 1500);
+            }
+        } else {
+            showMessage('❌ 提交失败，请检查网络连接。', 'error');
         }
-        
-        // 如果是卖出状态，验证实际收入
-        if (formData.status.includes('已卖出') && 
-            (formData.actual_income === null || isNaN(formData.actual_income))) {
-            throw new Error('卖出状态必须填写实际收入');
+    } catch (error) {
+        console.error('提交错误:', error);
+        showMessage('❌ 提交过程中发生错误: ' + error.message, 'error');
+    } finally {
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    }
+}
+
+// 验证表单
+function validateForm() {
+    const goodsId = document.getElementById('goodsId').value.trim();
+    const unitPrice = document.getElementById('unitPrice').value;
+    const status = document.getElementById('status').value;
+    
+    if (!goodsId) {
+        showMessage('请输入货号', 'error');
+        return false;
+    }
+    
+    if (!unitPrice || parseFloat(unitPrice) <= 0) {
+        showMessage('请输入有效的拿货单价', 'error');
+        return false;
+    }
+    
+    if (!status) {
+        showMessage('请选择货品状态', 'error');
+        return false;
+    }
+    
+    if (status.includes('已卖出')) {
+        const actualIncome = document.getElementById('actualIncome').value;
+        if (!actualIncome || parseFloat(actualIncome) <= 0) {
+            showMessage('卖出状态下必须填写实际收入', 'error');
+            return false;
         }
-        
-        // 插入数据到Supabase
+    }
+    
+    return true;
+}
+
+// 收集表单数据
+function collectFormData() {
+    const shippingExpr = document.getElementById('shippingExpr').value;
+    let shippingFee = document.getElementById('shippingFee').value;
+    
+    // 如果没有计算运费，尝试自动计算
+    if (!shippingFee && shippingExpr) {
+        try {
+            const safeExpr = shippingExpr.replace(/[^0-9+\-*/().\s]/g, '');
+            if (safeExpr) {
+                const result = Function('"use strict"; return (' + safeExpr + ')')();
+                if (!isNaN(result) && isFinite(result)) {
+                    shippingFee = result.toFixed(2);
+                }
+            }
+        } catch (error) {
+            const numValue = parseFloat(shippingExpr);
+            shippingFee = !isNaN(numValue) ? numValue.toFixed(2) : '0';
+        }
+    }
+    
+    return {
+        goods_id: document.getElementById('goodsId').value.trim(),
+        goods_name: document.getElementById('goodsName').value.trim() || null,
+        unit_price: parseFloat(document.getElementById('unitPrice').value) || 0,
+        quantity: parseInt(document.getElementById('quantity').value) || 1,
+        total_cost: parseFloat(document.getElementById('totalCost').value) || 0,
+        status: document.getElementById('status').value,
+        shipping_fee: parseFloat(shippingFee) || 0,
+        shipping_note: document.getElementById('shippingNote').value.trim(),
+        actual_income: document.getElementById('status').value.includes('已卖出') ? 
+            parseFloat(document.getElementById('actualIncome').value) || 0 : null,
+        remark: document.getElementById('remark').value.trim(),
+        submitter: document.getElementById('submitter').value.trim() || '未填写',
+        created_at: new Date().toISOString()
+    };
+}
+
+// 提交到Supabase
+async function submitToSupabase(formData) {
+    if (!supabase) {
+        showMessage('❌ 数据库连接未初始化', 'error');
+        return false;
+    }
+    
+    try {
         const { data, error } = await supabase
             .from('goods_records')
             .insert([formData])
             .select();
         
-        if (error) throw error;
-        
-        // 提交成功
-        showNotification('提交成功', '货品记录已成功提交到系统', 'success');
-        
-        // 重置表单
-        resetForm();
-        
-        // 重新加载历史记录
-        await loadGoodsHistory();
-        
-        // 更新实时统计
-        updateLiveStats();
-        
-        // 如果当前是记账人视图，刷新数据
-        if (currentView === 'accountant') {
-            await loadRecords();
+        if (error) {
+            throw error;
         }
         
+        console.log('数据提交成功:', data);
+        
+        // 更新本地记录列表
+        if (data && data[0]) {
+            allGoodsRecords.unshift(data[0]);
+        }
+        
+        return true;
     } catch (error) {
-        console.error('提交记录失败:', error);
-        showNotification('提交失败', error.message, 'error');
-    } finally {
-        // 恢复按钮状态
-        const submitBtn = e.target.querySelector('.btn-primary');
-        const loader = submitBtn.querySelector('.submit-loader');
-        loader.classList.add('hidden');
-        submitBtn.disabled = false;
+        console.error('Supabase提交错误:', error);
+        
+        if (error.message.includes('JWT')) {
+            showMessage('❌ 数据库认证失败，请检查API密钥配置', 'error');
+        } else if (error.message.includes('network')) {
+            showMessage('❌ 网络连接失败，请检查网络设置', 'error');
+        } else {
+            showMessage('❌ 提交失败: ' + error.message, 'error');
+        }
+        
+        return false;
+    }
+}
+
+// 保存货号模板到本地
+function saveGoodsTemplateToLocal(formData) {
+    if (!formData.goods_id) return;
+    
+    goodsTemplates[formData.goods_id] = {
+        name: formData.goods_name || '',
+        unit_price: formData.unit_price,
+        shipping_fee: formData.shipping_fee,
+        shipping_note: formData.shipping_note,
+        last_status: formData.status,
+        updated_at: new Date().toISOString()
+    };
+    
+    localStorage.setItem('goods_templates', JSON.stringify(goodsTemplates));
+}
+
+// 保存模板按钮点击
+function saveGoodsTemplate() {
+    const goodsId = document.getElementById('goodsId').value.trim();
+    if (!goodsId) {
+        showMessage('请先填写货号', 'error');
+        return;
+    }
+    
+    const goodsName = document.getElementById('goodsName').value.trim();
+    const unitPrice = document.getElementById('unitPrice').value;
+    const shippingExpr = document.getElementById('shippingExpr').value;
+    const shippingNote = document.getElementById('shippingNote').value.trim();
+    
+    if (!goodsName && !unitPrice && !shippingExpr && !shippingNote) {
+        showMessage('请至少填写一项信息以保存为模板', 'error');
+        return;
+    }
+    
+    saveGoodsTemplateToLocal({
+        goods_id: goodsId,
+        goods_name: goodsName,
+        unit_price: parseFloat(unitPrice) || 0,
+        shipping_fee: parseFloat(shippingExpr) || 0,
+        shipping_note: shippingNote,
+        status: document.getElementById('status').value || ''
+    });
+    
+    showMessage(`✅ 货号 "${goodsId}" 已保存为模板，下次输入时可自动填充`, 'success');
+}
+
+// 加载货号模板
+function loadGoodsTemplates() {
+    const savedTemplates = localStorage.getItem('goods_templates');
+    if (savedTemplates) {
+        goodsTemplates = JSON.parse(savedTemplates);
+        console.log('加载货号模板:', Object.keys(goodsTemplates).length);
     }
 }
 
 // 重置表单
 function resetForm() {
-    elements.goodsForm.reset();
-    elements.quantityInput.value = 1;
-    document.getElementById('sold-fields').classList.add('hidden');
-    elements.statusInput.value = '';
+    document.getElementById('goodsForm').reset();
+    document.getElementById('goodsIdSearch').value = '';
+    document.getElementById('totalCost').value = '0.00';
+    document.getElementById('shippingExpr').value = '';
+    document.getElementById('shippingFee').value = '';
+    document.getElementById('profitDisplay').value = '';
+    document.getElementById('profitDisplay').classList.remove('positive', 'negative');
+    document.getElementById('incomeSection').style.display = 'none';
+    document.getElementById('goodsId').removeAttribute('readonly');
+    document.getElementById('goodsId').value = '';
     
-    // 重置状态选项
-    elements.statusOptions.forEach(opt => opt.classList.remove('active'));
+    // 触发总价计算
+    document.getElementById('unitPrice').dispatchEvent(new Event('input'));
     
-    // 重置显示
-    elements.totalCostDisplay.textContent = '¥0.00';
-    updateProfitDisplay(0);
-    updateShippingFeePreview(0);
-    updateCostBreakdown(0);
-    updateShippingBreakdown(0);
-    elements.incomeBreakdown.textContent = '¥0.00';
-    
-    // 隐藏消息
-    elements.formMessage.classList.add('hidden');
-    
-    showNotification('表单重置', '所有表单字段已重置', 'info');
+    // 如果是更新模式，清空只读字段
+    if (isUpdateMode) {
+        document.getElementById('goodsId').setAttribute('readonly', 'true');
+    }
 }
 
-// 加载记录数据
-async function loadRecords() {
-    // 显示加载状态
-    elements.recordsTable.innerHTML = `
-        <div class="loading-state">
-            <div class="loading-spinner">
-                <div class="spinner-circle"></div>
-            </div>
-            <p>正在加载数据...</p>
-        </div>
-    `;
+// ========== 角色切换 ==========
+function switchRole(role) {
+    const submitBtn = document.getElementById('roleSubmitBtn');
+    const viewBtn = document.getElementById('roleViewBtn');
+    const submitForm = document.getElementById('submitForm');
+    const viewRecords = document.getElementById('viewRecords');
     
+    if (role === 'submit') {
+        submitBtn.classList.add('active');
+        viewBtn.classList.remove('active');
+        submitForm.classList.add('active');
+        viewRecords.classList.remove('active');
+    } else {
+        submitBtn.classList.remove('active');
+        viewBtn.classList.add('active');
+        submitForm.classList.remove('active');
+        viewRecords.classList.add('active');
+        loadAllRecords();
+    }
+}
+
+// ========== 数据加载与筛选 ==========
+// 加载所有记录
+async function loadAllRecords() {
     try {
-        // 构建查询
-        let query = supabase.from('goods_records').select('*');
+        showLoading(true);
         
-        // 应用时间筛选
-        const activeTimeTab = document.querySelector('.time-tab.active');
-        const timeRange = activeTimeTab?.dataset.range || 'today';
+        const { data, error } = await supabase
+            .from('goods_records')
+            .select('*')
+            .order('created_at', { ascending: false });
         
-        if (timeRange !== 'all') {
-            let startDate, endDate;
-            const now = new Date();
-            
-            switch (timeRange) {
-                case 'today':
-                    startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                    endDate = new Date(startDate);
-                    endDate.setDate(startDate.getDate() + 1);
-                    break;
-                case 'week':
-                    const dayOfWeek = now.getDay();
-                    const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-                    startDate = new Date(now.getFullYear(), now.getMonth(), diff);
-                    endDate = new Date(startDate);
-                    endDate.setDate(startDate.getDate() + 7);
-                    break;
-                case 'month':
-                    startDate = new Date(now.getFullYear(), now.getMonth(), 1);
-                    endDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-                    break;
-                case 'year':
-                    startDate = new Date(now.getFullYear(), 0, 1);
-                    endDate = new Date(now.getFullYear() + 1, 0, 1);
-                    break;
-                case 'custom':
-                    const dateFrom = elements.dateFromInput.value;
-                    const dateTo = elements.dateToInput.value;
-                    if (dateFrom && dateTo) {
-                        startDate = new Date(dateFrom);
-                        endDate = new Date(dateTo);
-                        endDate.setDate(endDate.getDate() + 1);
-                    }
-                    break;
-            }
-            
-            if (startDate && endDate) {
-                query = query.gte('created_at', startDate.toISOString())
-                            .lt('created_at', endDate.toISOString());
-            }
+        if (error) {
+            throw error;
         }
         
-        // 应用其他筛选
-        const goodsIdFilter = elements.goodsIdFilter.value.trim();
-        if (goodsIdFilter) {
-            query = query.ilike('goods_id', `%${goodsIdFilter}%`);
-        }
+        allGoodsRecords = data || [];
+        currentRecords = [...allGoodsRecords];
         
-        const statusFilter = elements.statusFilter.value;
-        if (statusFilter !== 'all') {
-            if (statusFilter === '已卖出') {
-                query = query.like('status', '已卖出%');
-            } else {
-                query = query.eq('status', statusFilter);
-            }
-        }
+        // 应用当前筛选条件
+        applyFilters();
         
-        const submitterFilter = elements.submitterFilter.value.trim();
-        if (submitterFilter) {
-            query = query.ilike('submitter', `%${submitterFilter}%`);
-        }
+        // 更新统计信息
+        updateStats();
         
-        // 按时间倒序排序
-        query = query.order('created_at', { ascending: false });
+        // 更新月度统计
+        loadMonthlyStats();
         
-        // 执行查询
-        const { data, error } = await query;
+        // 更新货号模板
+        updateGoodsTemplatesFromRecords();
         
-        if (error) throw error;
-        
-        // 保存记录到全局变量
-        allRecords = data || [];
-        
-        // 更新统计数据
-        updateStatistics(allRecords);
-        
-        // 根据视图模式显示数据
-        const viewMode = elements.viewModeSelect.value;
-        displayRecords(allRecords, viewMode);
-        
-        // 更新最后同步时间
         updateLastSyncTime();
         
+        showMessage(`✅ 已加载 ${allGoodsRecords.length} 条记录`, 'success');
+        
     } catch (error) {
-        console.error('加载记录失败:', error);
-        elements.recordsTable.innerHTML = `
-            <div class="loading-state" style="color: var(--danger-color);">
-                <i class="fas fa-exclamation-circle" style="font-size: 3rem;"></i>
-                <p>加载失败: ${error.message}</p>
-            </div>
-        `;
+        console.error('加载记录错误:', error);
+        showMessage('❌ 加载记录失败: ' + error.message, 'error');
+        displayRecords([]);
+    } finally {
+        showLoading(false);
     }
 }
 
-// 更新统计数据
-function updateStatistics(records) {
-    if (!records || records.length === 0) {
-        elements.totalRecordsEl.textContent = '0';
-        elements.totalProfitEl.textContent = '¥0';
-        elements.totalCostSumEl.textContent = '¥0';
-        elements.avgProfitMarginEl.textContent = '0%';
-        return;
-    }
+// 从记录更新货号模板
+function updateGoodsTemplatesFromRecords() {
+    allGoodsRecords.forEach(record => {
+        if (!record.goods_id) return;
+        
+        if (!goodsTemplates[record.goods_id] || 
+            new Date(record.created_at) > new Date(goodsTemplates[record.goods_id].updated_at || 0)) {
+            
+            goodsTemplates[record.goods_id] = {
+                name: record.goods_name || '',
+                unit_price: record.unit_price,
+                shipping_fee: record.shipping_fee,
+                shipping_note: record.shipping_note,
+                last_status: record.status,
+                updated_at: record.created_at
+            };
+        }
+    });
     
-    const totalRecords = records.length;
-    
-    // 计算总利润（只计算卖出状态）
-    const soldRecords = records.filter(r => r.status.includes('已卖出') && r.profit !== null);
-    const totalProfit = soldRecords.reduce((sum, record) => sum + (record.profit || 0), 0);
-    
-    // 计算总成本
-    const totalCostSum = records.reduce((sum, record) => sum + (record.total_cost || 0), 0);
-    
-    // 计算平均利润率
-    const totalRevenue = soldRecords.reduce((sum, record) => sum + (record.actual_income || 0), 0);
-    const avgProfitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue * 100) : 0;
-    
-    // 更新显示
-    elements.totalRecordsEl.textContent = totalRecords.toLocaleString();
-    elements.totalProfitEl.textContent = `¥${totalProfit.toFixed(2)}`;
-    elements.totalProfitEl.style.color = totalProfit >= 0 ? 'var(--success-color)' : 'var(--danger-color)';
-    elements.totalCostSumEl.textContent = `¥${totalCostSum.toFixed(2)}`;
-    elements.avgProfitMarginEl.textContent = `${avgProfitMargin.toFixed(1)}%`;
-    elements.avgProfitMarginEl.style.color = avgProfitMargin >= 0 ? 'var(--success-color)' : 'var(--danger-color)';
+    localStorage.setItem('goods_templates', JSON.stringify(goodsTemplates));
 }
 
-// 显示记录数据
-function displayRecords(records, viewMode) {
-    if (records.length === 0) {
-        elements.recordsTable.innerHTML = `
-            <div class="loading-state">
-                <i class="fas fa-inbox" style="font-size: 3rem; color: var(--gray-500);"></i>
-                <p>暂无数据</p>
-                <p style="color: var(--gray-600); font-size: 0.9rem;">尝试调整筛选条件</p>
-            </div>
-        `;
+// 应用筛选条件
+function applyFilters() {
+    let filteredRecords = [...allGoodsRecords];
+    
+    // 按时间周期筛选
+    if (currentFilters.period !== 'all') {
+        const now = new Date();
+        let startDate = new Date();
+        
+        switch (currentFilters.period) {
+            case 'today':
+                startDate.setHours(0, 0, 0, 0);
+                break;
+            case 'week':
+                startDate.setDate(now.getDate() - 7);
+                break;
+            case 'month':
+                startDate.setMonth(now.getMonth() - 1);
+                break;
+            case 'year':
+                startDate.setFullYear(now.getFullYear() - 1);
+                break;
+        }
+        
+        filteredRecords = filteredRecords.filter(record => 
+            new Date(record.created_at) >= startDate
+        );
+    }
+    
+    // 按日期范围筛选
+    if (currentFilters.startDate) {
+        const startDate = new Date(currentFilters.startDate);
+        startDate.setHours(0, 0, 0, 0);
+        filteredRecords = filteredRecords.filter(record => 
+            new Date(record.created_at) >= startDate
+        );
+    }
+    
+    if (currentFilters.endDate) {
+        const endDate = new Date(currentFilters.endDate);
+        endDate.setHours(23, 59, 59, 999);
+        filteredRecords = filteredRecords.filter(record => 
+            new Date(record.created_at) <= endDate
+        );
+    }
+    
+    // 按货号筛选
+    if (currentFilters.goodsId) {
+        filteredRecords = filteredRecords.filter(record => 
+            record.goods_id && record.goods_id.toLowerCase().includes(currentFilters.goodsId.toLowerCase())
+        );
+    }
+    
+    // 按状态筛选
+    if (currentFilters.status) {
+        filteredRecords = filteredRecords.filter(record => 
+            record.status === currentFilters.status
+        );
+    }
+    
+    // 按提交人筛选
+    if (currentFilters.submitter) {
+        filteredRecords = filteredRecords.filter(record => 
+            record.submitter && record.submitter.toLowerCase().includes(currentFilters.submitter.toLowerCase())
+        );
+    }
+    
+    currentRecords = filteredRecords;
+    
+    // 重置到第一页
+    currentPage = 1;
+    
+    // 显示记录
+    displayRecordsByView();
+    
+    // 更新统计
+    updateStats();
+}
+
+// 应用日期范围
+function applyDateRange() {
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+    
+    currentFilters.startDate = startDate || null;
+    currentFilters.endDate = endDate || null;
+    
+    if (startDate || endDate) {
+        currentFilters.period = 'custom';
+        document.querySelectorAll('.time-btn').forEach(btn => btn.classList.remove('active'));
+    }
+    
+    applyFilters();
+}
+
+// 清除所有筛选
+function clearAllFilters() {
+    // 重置筛选条件
+    currentFilters = {
+        period: 'all',
+        startDate: null,
+        endDate: null,
+        goodsId: '',
+        status: '',
+        submitter: ''
+    };
+    
+    // 重置UI
+    document.querySelectorAll('.time-btn').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.dataset.period === 'all') {
+            btn.classList.add('active');
+        }
+    });
+    
+    document.getElementById('startDate').value = '';
+    document.getElementById('endDate').value = '';
+    document.getElementById('filterGoodsId').value = '';
+    document.getElementById('filterStatus').value = '';
+    document.getElementById('filterSubmitter').value = '';
+    
+    // 应用筛选
+    applyFilters();
+    
+    showMessage('筛选条件已清除', 'success');
+}
+
+// ========== 显示记录 ==========
+// 按视图显示记录
+function displayRecordsByView(viewType = null) {
+    if (!viewType) {
+        const activeTab = document.querySelector('.view-tab.active');
+        viewType = activeTab ? activeTab.dataset.view : 'timeline';
+    }
+    
+    switch (viewType) {
+        case 'byGoods':
+            displayRecordsByGoods();
+            break;
+        case 'byMonth':
+            displayRecordsByMonth();
+            break;
+        case 'timeline':
+        default:
+            displayTimelineRecords();
+            break;
+    }
+}
+
+// 时间线视图
+function displayTimelineRecords() {
+    const recordsList = document.getElementById('recordsList');
+    const emptyMessage = document.getElementById('emptyMessage');
+    const pagination = document.getElementById('pagination');
+    
+    if (!currentRecords || currentRecords.length === 0) {
+        recordsList.innerHTML = '';
+        emptyMessage.style.display = 'block';
+        pagination.style.display = 'none';
         return;
     }
+    
+    emptyMessage.style.display = 'none';
+    
+    // 计算分页
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const pageRecords = currentRecords.slice(startIndex, endIndex);
+    totalPages = Math.ceil(currentRecords.length / pageSize);
+    
+    // 更新分页信息
+    updatePagination();
     
     let html = '';
     
-    switch (viewMode) {
-        case 'timeline':
-            html = createTimelineView(records);
-            break;
-        case 'grouped':
-            html = createGroupedView(records);
-            break;
-        case 'monthly':
-            html = createMonthlyView(records);
-            break;
-        case 'table':
-        default:
-            html = createTableView(records);
-    }
-    
-    elements.recordsTable.innerHTML = html;
-    
-    // 添加交互效果
-    setTimeout(() => {
-        document.querySelectorAll('.table-row, .month-card, .goods-group').forEach(el => {
-            el.style.opacity = '0';
-            el.style.transform = 'translateY(10px)';
-            
-            setTimeout(() => {
-                el.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-                el.style.opacity = '1';
-                el.style.transform = 'translateY(0)';
-            }, 100);
-        });
-    }, 10);
-}
-
-// 创建时间线视图
-function createTimelineView(records) {
-    let html = `
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr class="table-header-row">
-                        <th class="table-header-cell">时间</th>
-                        <th class="table-header-cell">货号</th>
-                        <th class="table-header-cell">尺码/款式</th>
-                        <th class="table-header-cell">状态</th>
-                        <th class="table-header-cell">成本</th>
-                        <th class="table-header-cell">收入</th>
-                        <th class="table-header-cell">利润</th>
-                        <th class="table-header-cell">提交人</th>
-                    </tr>
-                </thead>
-                <tbody>
-    `;
-    
-    records.forEach(record => {
-        const date = new Date(record.created_at);
-        const timeStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-        
-        let statusClass = '';
-        if (record.status.includes('已卖出')) statusClass = 'sold';
-        else if (record.status.includes('退回')) statusClass = 'returned';
-        else statusClass = 'unsold';
-        
-        const profitClass = record.profit >= 0 ? 'positive' : 'negative';
-        
-        html += `
-            <tr class="table-row">
-                <td class="table-cell">${timeStr}</td>
-                <td class="table-cell"><strong>${record.goods_id}</strong></td>
-                <td class="table-cell">${record.goods_name}</td>
-                <td class="table-cell">
-                    <span class="status-badge ${statusClass}">
-                        <i class="fas ${statusClass === 'sold' ? 'fa-check-circle' : statusClass === 'returned' ? 'fa-undo' : 'fa-box'}"></i>
-                        ${record.status}
-                    </span>
-                </td>
-                <td class="table-cell">¥${record.total_cost?.toFixed(2) || '0.00'}</td>
-                <td class="table-cell">${record.actual_income ? '¥' + record.actual_income.toFixed(2) : '-'}</td>
-                <td class="table-cell profit-cell ${profitClass}">
-                    ${record.profit !== null ? '¥' + record.profit.toFixed(2) : '-'}
-                </td>
-                <td class="table-cell">${record.submitter || '-'}</td>
-            </tr>
-        `;
-    });
-    
-    html += '</tbody></table></div>';
-    return html;
-}
-
-// 创建按货号分组视图
-function createGroupedView(records) {
-    // 按货号分组
-    const grouped = {};
-    records.forEach(record => {
-        if (!grouped[record.goods_id]) {
-            grouped[record.goods_id] = [];
+    // 按日期分组
+    const groupedByDate = {};
+    pageRecords.forEach(record => {
+        const date = new Date(record.created_at).toLocaleDateString('zh-CN');
+        if (!groupedByDate[date]) {
+            groupedByDate[date] = [];
         }
-        grouped[record.goods_id].push(record);
+        groupedByDate[date].push(record);
     });
     
-    let html = '<div class="grouped-records">';
+    // 按日期倒序
+    const sortedDates = Object.keys(groupedByDate).sort((a, b) => 
+        new Date(b) - new Date(a)
+    );
     
-    Object.entries(grouped).forEach(([goodsId, goodsRecords]) => {
-        const firstRecord = goodsRecords[0];
-        
-        // 计算该货号的统计
-        const totalCost = goodsRecords.reduce((sum, r) => sum + (r.total_cost || 0), 0);
-        const totalIncome = goodsRecords.filter(r => r.status.includes('已卖出'))
-                                       .reduce((sum, r) => sum + (r.actual_income || 0), 0);
-        const totalProfit = goodsRecords.filter(r => r.status.includes('已卖出'))
-                                       .reduce((sum, r) => sum + (r.profit || 0), 0);
-        
+    sortedDates.forEach(date => {
         html += `
-            <div class="goods-group">
-                <div class="group-header">
-                    <span>${goodsId} - ${firstRecord.goods_name}</span>
-                    <span>${goodsRecords.length} 条记录</span>
+            <div class="date-group">
+                <div class="date-header">
+                    <i class="fas fa-calendar-day"></i> ${date}
+                    <span class="date-count">${groupedByDate[date].length} 条记录</span>
                 </div>
-                <div class="group-records">
-                    <div class="group-stats" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1rem;">
-                        <div style="text-align: center;">
-                            <div style="font-size: 0.8rem; color: var(--gray-600);">总成本</div>
-                            <div style="font-weight: 600; color: var(--warning-color);">¥${totalCost.toFixed(2)}</div>
-                        </div>
-                        <div style="text-align: center;">
-                            <div style="font-size: 0.8rem; color: var(--gray-600);">总收入</div>
-                            <div style="font-weight: 600; color: var(--primary-color);">¥${totalIncome.toFixed(2)}</div>
-                        </div>
-                        <div style="text-align: center;">
-                            <div style="font-size: 0.8rem; color: var(--gray-600);">总利润</div>
-                            <div style="font-weight: 600; color: ${totalProfit >= 0 ? 'var(--success-color)' : 'var(--danger-color)'};">¥${totalProfit.toFixed(2)}</div>
-                        </div>
-                    </div>
-                    <div class="table-container">
-                        <table>
-                            <thead>
-                                <tr class="table-header-row">
-                                    <th class="table-header-cell">时间</th>
-                                    <th class="table-header-cell">状态</th>
-                                    <th class="table-header-cell">单价</th>
-                                    <th class="table-header-cell">数量</th>
-                                    <th class="table-header-cell">总成本</th>
-                                    <th class="table-header-cell">收入</th>
-                                    <th class="table-header-cell">利润</th>
-                                </tr>
-                            </thead>
-                            <tbody>
+                <div class="date-records">
         `;
         
-        goodsRecords.forEach(record => {
-            const date = new Date(record.created_at);
-            const timeStr = `${date.getMonth()+1}/${date.getDate()}`;
-            const profitClass = record.profit >= 0 ? 'positive' : 'negative';
-            
-            html += `
-                <tr class="table-row">
-                    <td class="table-cell">${timeStr}</td>
-                    <td class="table-cell">${record.status}</td>
-                    <td class="table-cell">¥${record.unit_price?.toFixed(2) || '0.00'}</td>
-                    <td class="table-cell">${record.quantity || 1}</td>
-                    <td class="table-cell">¥${record.total_cost?.toFixed(2) || '0.00'}</td>
-                    <td class="table-cell">${record.actual_income ? '¥' + record.actual_income.toFixed(2) : '-'}</td>
-                    <td class="table-cell profit-cell ${profitClass}">
-                        ${record.profit !== null ? '¥' + record.profit.toFixed(2) : '-'}
-                    </td>
-                </tr>
-            `;
+        groupedByDate[date].forEach(record => {
+            html += createRecordItemHTML(record);
         });
         
-        html += '</tbody></table></div></div></div>';
-    });
-    
-    html += '</div>';
-    return html;
-}
-
-// 创建按月汇总视图
-function createMonthlyView(records) {
-    // 按月分组
-    const monthly = {};
-    records.forEach(record => {
-        const date = new Date(record.created_at);
-        const monthKey = `${date.getFullYear()}年${(date.getMonth()+1).toString().padStart(2, '0')}月`;
-        
-        if (!monthly[monthKey]) {
-            monthly[monthKey] = {
-                records: [],
-                totalCost: 0,
-                totalIncome: 0,
-                totalProfit: 0,
-                soldCount: 0,
-                totalCount: 0
-            };
-        }
-        
-        monthly[monthKey].records.push(record);
-        monthly[monthKey].totalCost += record.total_cost || 0;
-        monthly[monthKey].totalCount++;
-        
-        if (record.status.includes('已卖出')) {
-            monthly[monthKey].totalIncome += record.actual_income || 0;
-            monthly[monthKey].totalProfit += record.profit || 0;
-            monthly[monthKey].soldCount++;
-        }
-    });
-    
-    let html = '<div class="monthly-stats">';
-    
-    // 按月排序（从新到旧）
-    const months = Object.entries(monthly).sort((a, b) => {
-        // 提取年份和月份进行比较
-        const [yearA, monthA] = a[0].match(/\d+/g).map(Number);
-        const [yearB, monthB] = b[0].match(/\d+/g).map(Number);
-        
-        if (yearA !== yearB) return yearB - yearA;
-        return monthB - monthA;
-    });
-    
-    months.forEach(([monthKey, data]) => {
-        const profitMargin = data.totalIncome > 0 ? (data.totalProfit / data.totalIncome * 100) : 0;
-        const profitClass = data.totalProfit >= 0 ? 'profit-positive' : 'profit-negative';
-        
         html += `
-            <div class="month-card">
-                <div class="month-header">
-                    <div class="month-title">${monthKey}</div>
-                    <div class="month-total ${profitClass}">¥${data.totalProfit.toFixed(2)}</div>
-                </div>
-                <div class="month-details">
-                    <div class="month-detail">
-                        <div class="detail-label">总记录数</div>
-                        <div class="detail-value">${data.totalCount}</div>
-                    </div>
-                    <div class="month-detail">
-                        <div class="detail-label">卖出数量</div>
-                        <div class="detail-value">${data.soldCount}</div>
-                    </div>
-                    <div class="month-detail">
-                        <div class="detail-label">总成本</div>
-                        <div class="detail-value">¥${data.totalCost.toFixed(2)}</div>
-                    </div>
-                    <div class="month-detail">
-                        <div class="detail-label">总收入</div>
-                        <div class="detail-value">¥${data.totalIncome.toFixed(2)}</div>
-                    </div>
-                    <div class="month-detail">
-                        <div class="detail-label">利润率</div>
-                        <div class="detail-value ${profitClass}">${profitMargin.toFixed(1)}%</div>
-                    </div>
-                    <div class="month-detail">
-                        <div class="detail-label">平均利润</div>
-                        <div class="detail-value ${profitClass}">
-                            ¥${data.soldCount > 0 ? (data.totalProfit / data.soldCount).toFixed(2) : '0.00'}
-                        </div>
-                    </div>
                 </div>
             </div>
         `;
     });
     
-    html += '</div>';
-    return html;
-}
-
-// 创建详细表格视图
-function createTableView(records) {
-    let html = `
-        <div class="table-container">
-            <table>
-                <thead>
-                    <tr class="table-header-row">
-                        <th class="table-header-cell">时间</th>
-                        <th class="table-header-cell">货号</th>
-                        <th class="table-header-cell">尺码/款式</th>
-                        <th class="table-header-cell">单价</th>
-                        <th class="table-header-cell">数量</th>
-                        <th class="table-header-cell">总价</th>
-                        <th class="table-header-cell">状态</th>
-                        <th class="table-header-cell">运费</th>
-                        <th class="table-header-cell">收入</th>
-                        <th class="table-header-cell">利润</th>
-                        <th class="table-header-cell">提交人</th>
-                        <th class="table-header-cell">备注</th>
-                    </tr>
-                </thead>
-                <tbody>
-    `;
+    recordsList.innerHTML = html;
     
-    records.forEach(record => {
-        const date = new Date(record.created_at);
-        const timeStr = `${date.getMonth()+1}/${date.getDate()} ${date.getHours().toString().padStart(2, '0')}:${date.getMinutes().toString().padStart(2, '0')}`;
-        
-        let statusClass = '';
-        if (record.status.includes('已卖出')) statusClass = 'sold';
-        else if (record.status.includes('退回')) statusClass = 'returned';
-        else statusClass = 'unsold';
-        
-        const profitClass = record.profit >= 0 ? 'positive' : 'negative';
-        
-        html += `
-            <tr class="table-row">
-                <td class="table-cell">${timeStr}</td>
-                <td class="table-cell"><strong>${record.goods_id}</strong></td>
-                <td class="table-cell">${record.goods_name}</td>
-                <td class="table-cell">¥${record.unit_price?.toFixed(2) || '0.00'}</td>
-                <td class="table-cell">${record.quantity || 1}</td>
-                <td class="table-cell">¥${record.total_cost?.toFixed(2) || '0.00'}</td>
-                <td class="table-cell">
-                    <span class="status-badge ${statusClass}">
-                        ${record.status}
-                    </span>
-                </td>
-                <td class="table-cell">¥${record.shipping_fee?.toFixed(2) || '0.00'}</td>
-                <td class="table-cell">${record.actual_income ? '¥' + record.actual_income.toFixed(2) : '-'}</td>
-                <td class="table-cell profit-cell ${profitClass}">
-                    ${record.profit !== null ? '¥' + record.profit.toFixed(2) : '-'}
-                </td>
-                <td class="table-cell">${record.submitter || '-'}</td>
-                <td class="table-cell" title="${record.remark || ''}">
-                    ${record.remark ? (record.remark.length > 20 ? record.remark.substring(0, 20) + '...' : record.remark) : '-'}
-                </td>
-            </tr>
-        `;
+    // 添加查看详情事件
+    document.querySelectorAll('.view-detail-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const goodsId = this.dataset.goodsId;
+            showGoodsDetailModal(goodsId);
+        });
     });
-    
-    html += '</tbody></table></div>';
-    return html;
 }
 
-// 重置筛选条件
-function resetFilters() {
-    // 重置时间筛选
-    elements.timeFilterTabs.forEach(tab => {
-        tab.classList.toggle('active', tab.dataset.range === 'today');
-    });
+// 按货号分组视图
+function displayRecordsByGoods() {
+    const recordsList = document.getElementById('recordsList');
+    const emptyMessage = document.getElementById('emptyMessage');
+    const pagination = document.getElementById('pagination');
     
-    // 重置其他筛选
-    elements.goodsIdFilter.value = '';
-    elements.submitterFilter.value = '';
-    elements.statusFilter.value = 'all';
-    elements.viewModeSelect.value = 'timeline';
-    
-    // 隐藏自定义日期范围
-    document.getElementById('custom-date-range').classList.add('hidden');
-    
-    // 重新加载数据
-    loadRecords();
-    
-    showNotification('筛选重置', '所有筛选条件已重置为默认值', 'info');
-}
-
-// 导出数据
-function exportData() {
-    if (allRecords.length === 0) {
-        showNotification('导出失败', '没有可导出的数据', 'warning');
+    if (!currentRecords || currentRecords.length === 0) {
+        recordsList.innerHTML = '';
+        emptyMessage.style.display = 'block';
+        pagination.style.display = 'none';
         return;
     }
     
-    try {
-        // 创建CSV内容
-        const headers = ['时间', '货号', '尺码/款式', '单价', '数量', '总价', '状态', '运费', '收入', '利润', '提交人', '备注'];
-        const csvRows = [
-            headers.join(','),
-            ...allRecords.map(record => [
-                new Date(record.created_at).toLocaleString('zh-CN'),
-                record.goods_id,
-                record.goods_name,
-                record.unit_price,
-                record.quantity,
-                record.total_cost,
-                record.status,
-                record.shipping_fee,
-                record.actual_income || '',
-                record.profit || '',
-                record.submitter || '',
-                record.remark || ''
-            ].map(field => `"${String(field).replace(/"/g, '""')}"`).join(','))
-        ];
+    emptyMessage.style.display = 'none';
+    pagination.style.display = 'flex';
+    
+    // 按货号分组
+    const groupedByGoods = {};
+    currentRecords.forEach(record => {
+        if (!record.goods_id) return;
         
-        const csvString = csvRows.join('\n');
-        const blob = new Blob(['\uFEFF' + csvString], { type: 'text/csv;charset=utf-8;' });
-        const url = URL.createObjectURL(blob);
+        if (!groupedByGoods[record.goods_id]) {
+            groupedByGoods[record.goods_id] = {
+                name: record.goods_name || record.goods_id,
+                records: [],
+                totalProfit: 0,
+                totalCost: 0,
+                lastStatus: record.status,
+                lastUpdate: record.created_at
+            };
+        }
         
-        // 创建下载链接
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `货品记录_${new Date().toISOString().split('T')[0]}.csv`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+        groupedByGoods[record.goods_id].records.push(record);
+        if (record.profit) {
+            groupedByGoods[record.goods_id].totalProfit += parseFloat(record.profit);
+        }
+        groupedByGoods[record.goods_id].totalCost += parseFloat(record.total_cost || 0);
         
-        showNotification('导出成功', `已导出${allRecords.length}条记录到CSV文件`, 'success');
-    } catch (error) {
-        console.error('导出失败:', error);
-        showNotification('导出失败', error.message, 'error');
+        // 更新最后状态和更新时间
+        if (new Date(record.created_at) > new Date(groupedByGoods[record.goods_id].lastUpdate)) {
+            groupedByGoods[record.goods_id].lastStatus = record.status;
+            groupedByGoods[record.goods_id].lastUpdate = record.created_at;
+        }
+    });
+    
+    // 按货号排序
+    const sortedGoodsIds = Object.keys(groupedByGoods).sort();
+    
+    let html = '';
+    
+    sortedGoodsIds.forEach(goodsId => {
+        const goodsData = groupedByGoods[goodsId];
+        const records = goodsData.records.sort((a, b) => 
+            new Date(b.created_at) - new Date(a.created_at)
+        );
+        
+        html += `
+            <div class="goods-group">
+                <div class="goods-header">
+                    <div class="goods-title">
+                        <i class="fas fa-box"></i> ${goodsId}
+                        <span class="goods-name">${goodsData.name !== goodsId ? `(${goodsData.name})` : ''}</span>
+                    </div>
+                    <div class="goods-stats">
+                        <span class="stat-item">
+                            <i class="fas fa-history"></i> ${records.length} 次记录
+                        </span>
+                        <span class="stat-item">
+                            <i class="fas fa-money-bill-wave"></i> 总利润: ${goodsData.totalProfit.toFixed(2)} 元
+                        </span>
+                        <span class="stat-item status-${goodsData.lastStatus.includes('卖出') ? 'sold' : 'unsold'}">
+                            ${goodsData.lastStatus}
+                        </span>
+                        <button class="goods-detail-btn" data-goods-id="${goodsId}">
+                            <i class="fas fa-info-circle"></i> 详情
+                        </button>
+                    </div>
+                </div>
+                <div class="goods-records">
+        `;
+        
+        // 只显示最近3条记录
+        const recentRecords = records.slice(0, 3);
+        recentRecords.forEach(record => {
+            html += createRecordItemHTML(record, true);
+        });
+        
+        if (records.length > 3) {
+            html += `
+                <div class="more-records">
+                    <i class="fas fa-ellipsis-h"></i> 还有 ${records.length - 3} 条历史记录
+                </div>
+            `;
+        }
+        
+        html += `
+                </div>
+            </div>
+        `;
+    });
+    
+    recordsList.innerHTML = html;
+    
+    // 添加详情按钮事件
+    document.querySelectorAll('.goods-detail-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const goodsId = this.dataset.goodsId;
+            showGoodsDetailModal(goodsId);
+        });
+    });
+}
+
+// 按月汇总视图
+function displayRecordsByMonth() {
+    const recordsList = document.getElementById('recordsList');
+    const emptyMessage = document.getElementById('emptyMessage');
+    const pagination = document.getElementById('pagination');
+    
+    if (!currentRecords || currentRecords.length === 0) {
+        recordsList.innerHTML = '';
+        emptyMessage.style.display = 'block';
+        pagination.style.display = 'none';
+        return;
+    }
+    
+    emptyMessage.style.display = 'none';
+    pagination.style.display = 'none';
+    
+    // 按月分组
+    const groupedByMonth = {};
+    currentRecords.forEach(record => {
+        const date = new Date(record.created_at);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        const monthName = `${date.getFullYear()}年${date.getMonth() + 1}月`;
+        
+        if (!groupedByMonth[monthKey]) {
+            groupedByMonth[monthKey] = {
+                name: monthName,
+                records: [],
+                totalProfit: 0,
+                totalCost: 0,
+                totalIncome: 0,
+                soldCount: 0,
+                unsoldCount: 0
+            };
+        }
+        
+        groupedByMonth[monthKey].records.push(record);
+        
+        if (record.profit) {
+            groupedByMonth[monthKey].totalProfit += parseFloat(record.profit);
+        }
+        
+        groupedByMonth[monthKey].totalCost += parseFloat(record.total_cost || 0);
+        
+        if (record.actual_income) {
+            groupedByMonth[monthKey].totalIncome += parseFloat(record.actual_income);
+        }
+        
+        if (record.status.includes('卖出')) {
+            groupedByMonth[monthKey].soldCount++;
+        } else {
+            groupedByMonth[monthKey].unsoldCount++;
+        }
+    });
+    
+    // 按月份倒序
+    const sortedMonths = Object.keys(groupedByMonth).sort((a, b) => b.localeCompare(a));
+    
+    let html = '';
+    
+    sortedMonths.forEach(monthKey => {
+        const monthData = groupedByMonth[monthKey];
+        
+        html += `
+            <div class="month-group">
+                <div class="month-header">
+                    <i class="fas fa-calendar-alt"></i> ${monthData.name}
+                    <span class="month-stats">
+                        <span class="stat-badge">
+                            <i class="fas fa-list"></i> ${monthData.records.length} 条
+                        </span>
+                        <span class="stat-badge ${monthData.totalProfit >= 0 ? 'profit-positive' : 'profit-negative'}">
+                            <i class="fas fa-chart-line"></i> ${monthData.totalProfit.toFixed(2)} 元
+                        </span>
+                    </span>
+                </div>
+                
+                <div class="month-summary">
+                    <div class="summary-grid">
+                        <div class="summary-item">
+                            <div class="summary-label">总成本</div>
+                            <div class="summary-value">${monthData.totalCost.toFixed(2)} 元</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="summary-label">总收入</div>
+                            <div class="summary-value">${monthData.totalIncome.toFixed(2)} 元</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="summary-label">已卖出</div>
+                            <div class="summary-value">${monthData.soldCount} 件</div>
+                        </div>
+                        <div class="summary-item">
+                            <div class="summary-label">未卖出</div>
+                            <div class="summary-value">${monthData.unsoldCount} 件</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="month-records">
+        `;
+        
+        // 显示本月记录（最多5条）
+        const recentRecords = monthData.records.sort((a, b) => 
+            new Date(b.created_at) - new Date(a.created_at)
+        ).slice(0, 5);
+        
+        recentRecords.forEach(record => {
+            html += createRecordItemHTML(record, true);
+        });
+        
+        if (monthData.records.length > 5) {
+            html += `
+                <div class="more-records">
+                    <i class="fas fa-ellipsis-h"></i> 本月还有 ${monthData.records.length - 5} 条记录
+                </div>
+            `;
+        }
+        
+        html += `
+                </div>
+            </div>
+        `;
+    });
+    
+    recordsList.innerHTML = html;
+}
+
+// 创建单个记录项的HTML
+function createRecordItemHTML(record, compact = false) {
+    const profit = record.profit !== null ? parseFloat(record.profit) : null;
+    const profitClass = profit !== null ? 
+        (profit > 0 ? 'positive' : profit < 0 ? 'negative' : '') : '';
+    
+    const statusClass = record.status.includes('卖出') ? 'sold' : 
+                       record.status.includes('退回') ? 'returned' :
+                       record.status.includes('下架') ? 'offShelf' : 'unsold';
+    
+    const actualIncomeText = record.actual_income !== null ? 
+        `<div class="record-field">
+            <span class="record-label">实际收入:</span>
+            <span class="record-value">${record.actual_income.toFixed(2)} 元</span>
+        </div>` : '';
+    
+    const profitText = profit !== null ? 
+        `<div class="record-field">
+            <span class="record-label">利润:</span>
+            <span class="record-profit ${profitClass}">${profit.toFixed(2)} 元</span>
+        </div>` : '';
+    
+    const remarkText = record.remark ? 
+        `<div class="record-field">
+            <span class="record-label">备注:</span>
+            <span class="record-value">${record.remark}</span>
+        </div>` : '';
+    
+    const compactClass = compact ? 'compact' : '';
+    
+    return `
+        <div class="record-item ${statusClass} ${compactClass}">
+            <div class="record-header">
+                <div class="record-title">
+                    <i class="fas fa-barcode"></i> ${record.goods_id}
+                    ${record.goods_name && record.goods_name !== record.goods_id ? 
+                        `<span class="record-subtitle">${record.goods_name}</span>` : ''}
+                </div>
+                <div class="record-status ${statusClass}">${record.status}</div>
+            </div>
+            
+            <div class="record-body">
+                <div class="record-field">
+                    <span class="record-label">成本:</span>
+                    <span class="record-value">
+                        ${record.unit_price.toFixed(2)} 元 × ${record.quantity} = ${record.total_cost.toFixed(2)} 元
+                    </span>
+                </div>
+                
+                <div class="record-field">
+                    <span class="record-label">运费:</span>
+                    <span class="record-value">
+                        ${record.shipping_fee.toFixed(2)} 元
+                        ${record.shipping_note ? `(${record.shipping_note})` : ''}
+                    </span>
+                </div>
+                
+                ${actualIncomeText}
+                ${profitText}
+                ${remarkText}
+            </div>
+            
+            <div class="record-footer">
+                <div class="record-info">
+                    <span><i class="fas fa-user"></i> ${record.submitter}</span>
+                    <span><i class="fas fa-clock"></i> ${formatDateTime(record.created_at)}</span>
+                </div>
+                <div class="record-actions">
+                    <button class="record-action-btn view-detail-btn" data-goods-id="${record.goods_id}">
+                        <i class="fas fa-info-circle"></i> 详情
+                    </button>
+                    <button class="record-action-btn update-btn" data-record-id="${record.id}">
+                        <i class="fas fa-edit"></i> 更新
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// ========== 分页控制 ==========
+function updatePagination() {
+    const prevBtn = document.getElementById('prevPage');
+    const nextBtn = document.getElementById('nextPage');
+    const pageInfo = document.getElementById('pageInfo');
+    const pagination = document.getElementById('pagination');
+    
+    if (totalPages <= 1) {
+        pagination.style.display = 'none';
+        return;
+    }
+    
+    pagination.style.display = 'flex';
+    
+    // 更新按钮状态
+    prevBtn.disabled = currentPage === 1;
+    nextBtn.disabled = currentPage === totalPages;
+    
+    // 更新页码信息
+    pageInfo.textContent = `第 ${currentPage} 页 / 共 ${totalPages} 页`;
+}
+
+function changePage(newPage) {
+    if (newPage < 1 || newPage > totalPages) return;
+    
+    currentPage = newPage;
+    
+    // 重新显示当前视图的记录
+    const activeTab = document.querySelector('.view-tab.active');
+    const viewType = activeTab ? activeTab.dataset.view : 'timeline';
+    displayRecordsByView(viewType);
+    
+    // 滚动到顶部
+    document.getElementById('recordsContainer').scrollIntoView({ behavior: 'smooth' });
+}
+
+// ========== 统计信息 ==========
+function updateStats() {
+    const totalRecords = document.getElementById('totalRecords');
+    const totalProfitSum = document.getElementById('totalProfitSum');
+    const totalCostSum = document.getElementById('totalCostSum');
+    const avgProfitRate = document.getElementById('avgProfitRate');
+    
+    // 基本统计
+    totalRecords.textContent = currentRecords.length;
+    
+    // 计算总利润和总成本（只计算卖出记录）
+    const soldRecords = currentRecords.filter(r => r.profit !== null);
+    const profitSum = soldRecords.reduce((sum, record) => sum + (parseFloat(record.profit) || 0), 0);
+    const costSum = soldRecords.reduce((sum, record) => sum + (parseFloat(record.total_cost) || 0), 0);
+    const incomeSum = soldRecords.reduce((sum, record) => sum + (parseFloat(record.actual_income) || 0), 0);
+    
+    totalProfitSum.textContent = profitSum.toFixed(2);
+    totalCostSum.textContent = costSum.toFixed(2);
+    
+    // 设置颜色
+    totalProfitSum.style.color = profitSum >= 0 ? '#2ecc71' : '#e74c3c';
+    
+    // 计算平均利润率
+    let avgRate = 0;
+    if (incomeSum > 0 && soldRecords.length > 0) {
+        avgRate = (profitSum / incomeSum) * 100;
+    }
+    avgProfitRate.textContent = avgRate.toFixed(1) + '%';
+    avgProfitRate.style.color = avgRate >= 0 ? '#2ecc71' : '#e74c3c';
+}
+
+// 加载月度统计
+async function loadMonthlyStats() {
+    const selectedMonth = document.getElementById('monthSelector').value;
+    const monthlyStatsDiv = document.getElementById('monthlyStats');
+    
+    // 生成月份选项
+    const monthSelector = document.getElementById('monthSelector');
+    if (monthSelector.options.length === 0) {
+        // 获取所有记录的月份
+        const monthsSet = new Set();
+        allGoodsRecords.forEach(record => {
+            const date = new Date(record.created_at);
+            const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+            monthsSet.add(monthKey);
+        });
+        
+        // 排序月份（最近的在前）
+        const sortedMonths = Array.from(monthsSet).sort((a, b) => b.localeCompare(a));
+        
+        // 添加选项
+        sortedMonths.forEach(monthKey => {
+            const [year, month] = monthKey.split('-');
+            const option = document.createElement('option');
+            option.value = monthKey;
+            option.textContent = `${year}年${parseInt(month)}月`;
+            monthSelector.appendChild(option);
+        });
+        
+        // 默认选择最近一个月
+        if (sortedMonths.length > 0) {
+            monthSelector.value = sortedMonths[0];
+        }
+    }
+    
+    // 计算月度统计
+    const monthlyData = calculateMonthlyStats(selectedMonth);
+    
+    let html = `
+        <div class="month-stat-item">
+            <div class="month-header">
+                <i class="fas fa-chart-bar"></i> ${monthlyData.monthName} 统计
+            </div>
+            <div class="month-data">
+                <div class="month-data-item">
+                    <div class="month-data-label">总记录数</div>
+                    <div class="month-data-value">${monthlyData.totalRecords} 条</div>
+                </div>
+                <div class="month-data-item">
+                    <div class="month-data-label">总利润</div>
+                    <div class="month-data-value" style="color: ${monthlyData.totalProfit >= 0 ? '#2ecc71' : '#e74c3c'}">
+                        ${monthlyData.totalProfit.toFixed(2)} 元
+                    </div>
+                </div>
+                <div class="month-data-item">
+                    <div class="month-data-label">总成本</div>
+                    <div class="month-data-value">${monthlyData.totalCost.toFixed(2)} 元</div>
+                </div>
+                <div class="month-data-item">
+                    <div class="month-data-label">利润率</div>
+                    <div class="month-data-value" style="color: ${monthlyData.profitRate >= 0 ? '#2ecc71' : '#e74c3c'}">
+                        ${monthlyData.profitRate.toFixed(1)}%
+                    </div>
+                </div>
+                <div class="month-data-item">
+                    <div class="month-data-label">卖出数量</div>
+                    <div class="month-data-value">${monthlyData.soldCount} 件</div>
+                </div>
+                <div class="month-data-item">
+                    <div class="month-data-label">未卖出数量</div>
+                    <div class="month-data-value">${monthlyData.unsoldCount} 件</div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    monthlyStatsDiv.innerHTML = html;
+}
+
+function calculateMonthlyStats(monthKey) {
+    // 筛选指定月份的记录
+    const monthRecords = allGoodsRecords.filter(record => {
+        const date = new Date(record.created_at);
+        const recordMonthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        return recordMonthKey === monthKey;
+    });
+    
+    // 解析月份名称
+    const [year, month] = monthKey.split('-');
+    const monthName = `${year}年${parseInt(month)}月`;
+    
+    // 计算统计
+    const soldRecords = monthRecords.filter(r => r.status && r.status.includes('卖出'));
+    const unsoldRecords = monthRecords.filter(r => !r.status || !r.status.includes('卖出'));
+    
+    const totalProfit = soldRecords.reduce((sum, record) => sum + (parseFloat(record.profit) || 0), 0);
+    const totalCost = soldRecords.reduce((sum, record) => sum + (parseFloat(record.total_cost) || 0), 0);
+    const totalIncome = soldRecords.reduce((sum, record) => sum + (parseFloat(record.actual_income) || 0), 0);
+    
+    const profitRate = totalIncome > 0 ? (totalProfit / totalIncome) * 100 : 0;
+    
+    return {
+        monthName,
+        totalRecords: monthRecords.length,
+        totalProfit,
+        totalCost,
+        totalIncome,
+        profitRate,
+        soldCount: soldRecords.length,
+        unsoldCount: unsoldRecords.length
+    };
+}
+
+// ========== 货号详情模态框 ==========
+function showGoodsDetailModal(goodsId) {
+    selectedGoodsId = goodsId;
+    
+    // 获取该货号的所有记录
+    const goodsRecords = allGoodsRecords.filter(record => record.goods_id === goodsId);
+    
+    if (goodsRecords.length === 0) {
+        showMessage('未找到该货号的记录', 'error');
+        return;
+    }
+    
+    // 更新模态框标题
+    document.getElementById('modalGoodsId').textContent = goodsId;
+    
+    // 生成历史记录HTML
+    let html = '';
+    
+    // 按时间倒序
+    const sortedRecords = goodsRecords.sort((a, b) => 
+        new Date(b.created_at) - new Date(a.created_at)
+    );
+    
+    sortedRecords.forEach((record, index) => {
+        const profit = record.profit !== null ? parseFloat(record.profit) : null;
+        const profitClass = profit !== null ? 
+            (profit > 0 ? 'positive' : profit < 0 ? 'negative' : '') : '';
+        
+        html += `
+            <div class="goods-history-item">
+                <div class="goods-history-header">
+                    <div class="goods-history-date">
+                        ${formatDateTime(record.created_at)}
+                        <span class="status-badge status-${record.status.includes('卖出') ? 'sold' : 'unsold'}">
+                            ${record.status}
+                        </span>
+                    </div>
+                    <div class="goods-history-submitter">
+                        <i class="fas fa-user"></i> ${record.submitter}
+                    </div>
+                </div>
+                <div class="goods-history-body">
+                    <div class="history-field">
+                        <span class="history-label">单价:</span>
+                        <span class="history-value">${record.unit_price.toFixed(2)} 元</span>
+                    </div>
+                    <div class="history-field">
+                        <span class="history-label">数量:</span>
+                        <span class="history-value">${record.quantity}</span>
+                    </div>
+                    <div class="history-field">
+                        <span class="history-label">总成本:</span>
+                        <span class="history-value">${record.total_cost.toFixed(2)} 元</span>
+                    </div>
+                    <div class="history-field">
+                        <span class="history-label">运费:</span>
+                        <span class="history-value">${record.shipping_fee.toFixed(2)} 元</span>
+                    </div>
+        `;
+        
+        if (record.actual_income) {
+            html += `
+                <div class="history-field">
+                    <span class="history-label">实际收入:</span>
+                    <span class="history-value">${record.actual_income.toFixed(2)} 元</span>
+                </div>
+            `;
+        }
+        
+        if (profit !== null) {
+            html += `
+                <div class="history-field">
+                    <span class="history-label">利润:</span>
+                    <span class="history-value ${profitClass}">${profit.toFixed(2)} 元</span>
+                </div>
+            `;
+        }
+        
+        if (record.remark) {
+            html += `
+                <div class="history-field full-width">
+                    <span class="history-label">备注:</span>
+                    <span class="history-value">${record.remark}</span>
+                </div>
+            `;
+        }
+        
+        html += `
+                </div>
+            </div>
+        `;
+    });
+    
+    // 更新模态框内容
+    document.getElementById('goodsHistory').innerHTML = html;
+    
+    // 显示模态框
+    document.getElementById('goodsDetailModal').style.display = 'block';
+    document.getElementById('overlay').style.display = 'block';
+    
+    // 添加样式
+    if (!document.querySelector('#history-styles')) {
+        const styleEl = document.createElement('style');
+        styleEl.id = 'history-styles';
+        styleEl.textContent = `
+            .goods-history-item {
+                background: #f8f9fa;
+                border-radius: 10px;
+                padding: 20px;
+                margin-bottom: 15px;
+                border-left: 4px solid var(--info-color);
+            }
+            
+            .goods-history-header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 15px;
+                padding-bottom: 10px;
+                border-bottom: 1px solid #e9ecef;
+            }
+            
+            .goods-history-date {
+                font-weight: 600;
+                color: var(--dark-color);
+                display: flex;
+                align-items: center;
+                gap: 10px;
+            }
+            
+            .status-badge {
+                padding: 4px 10px;
+                border-radius: 12px;
+                font-size: 0.8rem;
+                font-weight: 600;
+            }
+            
+            .status-sold {
+                background: #d4edda;
+                color: #155724;
+            }
+            
+            .status-unsold {
+                background: #fff3cd;
+                color: #856404;
+            }
+            
+            .goods-history-submitter {
+                color: var(--gray-color);
+                font-size: 0.9rem;
+            }
+            
+            .goods-history-body {
+                display: grid;
+                grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+                gap: 15px;
+            }
+            
+            .history-field {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 5px 0;
+            }
+            
+            .history-label {
+                color: var(--gray-color);
+                font-size: 0.9rem;
+            }
+            
+            .history-value {
+                font-weight: 500;
+                color: var(--dark-color);
+            }
+            
+            .history-value.positive {
+                color: #2ecc71;
+            }
+            
+            .history-value.negative {
+                color: #e74c3c;
+            }
+            
+            .full-width {
+                grid-column: 1 / -1;
+            }
+        `;
+        document.head.appendChild(styleEl);
     }
 }
 
-// 更新实时统计
-function updateLiveStats() {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+function closeGoodsDetailModal() {
+    document.getElementById('goodsDetailModal').style.display = 'none';
+    document.getElementById('overlay').style.display = 'none';
+    selectedGoodsId = null;
+}
+
+// ========== 导出功能 ==========
+function copyFilteredRecords() {
+    if (currentRecords.length === 0) {
+        showMessage('没有可复制的记录', 'error');
+        return;
+    }
     
-    const todayRecords = allRecords.filter(record => {
-        const recordDate = new Date(record.created_at);
-        return recordDate >= today && recordDate < tomorrow;
+    // 构建表格格式文本
+    let text = '货品管理记录汇总\n\n';
+    text += '时间,货号,码数/款式,状态,单价,数量,总成本,运费,运费备注,实际收入,利润,提交人,备注\n';
+    text += '----------------------------------------------------------------------------------------------------------------------\n';
+    
+    currentRecords.forEach(record => {
+        text += `${formatDateTime(record.created_at)},`;
+        text += `${record.goods_id},`;
+        text += `${record.goods_name || ''},`;
+        text += `${record.status},`;
+        text += `${record.unit_price.toFixed(2)},`;
+        text += `${record.quantity},`;
+        text += `${record.total_cost.toFixed(2)},`;
+        text += `${record.shipping_fee.toFixed(2)},`;
+        text += `${record.shipping_note || ''},`;
+        text += `${record.actual_income ? record.actual_income.toFixed(2) : ''},`;
+        text += `${record.profit ? record.profit.toFixed(2) : ''},`;
+        text += `${record.submitter},`;
+        text += `${record.remark || ''}\n`;
     });
     
-    const todaySoldRecords = todayRecords.filter(r => r.status.includes('已卖出'));
-    const todayProfit = todaySoldRecords.reduce((sum, r) => sum + (r.profit || 0), 0);
+    // 复制到剪贴板
+    navigator.clipboard.writeText(text).then(() => {
+        showMessage('✅ 所有记录已复制到剪贴板，可粘贴到Excel中', 'success');
+    }).catch(err => {
+        console.error('复制失败:', err);
+        showMessage('❌ 复制失败，请手动选择并复制', 'error');
+    });
+}
+
+function exportToExcel() {
+    if (currentRecords.length === 0) {
+        showMessage('没有可导出的记录', 'error');
+        return;
+    }
     
-    elements.liveRecordCount.textContent = todayRecords.length;
-    elements.liveProfitToday.textContent = `¥${todayProfit.toFixed(2)}`;
+    // 创建CSV数据
+    let csv = '时间,货号,码数/款式,状态,单价,数量,总成本,运费,运费备注,实际收入,利润,提交人,备注\n';
     
-    // 更新统计卡片的变化值
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayRecords = allRecords.filter(record => {
-        const recordDate = new Date(record.created_at);
-        return recordDate >= yesterday && recordDate < today;
+    currentRecords.forEach(record => {
+        csv += `"${formatDateTime(record.created_at)}",`;
+        csv += `"${record.goods_id}",`;
+        csv += `"${record.goods_name || ''}",`;
+        csv += `"${record.status}",`;
+        csv += `"${record.unit_price.toFixed(2)}",`;
+        csv += `"${record.quantity}",`;
+        csv += `"${record.total_cost.toFixed(2)}",`;
+        csv += `"${record.shipping_fee.toFixed(2)}",`;
+        csv += `"${record.shipping_note || ''}",`;
+        csv += `"${record.actual_income ? record.actual_income.toFixed(2) : ''}",`;
+        csv += `"${record.profit ? record.profit.toFixed(2) : ''}",`;
+        csv += `"${record.submitter}",`;
+        csv += `"${record.remark || ''}"\n`;
     });
     
-    const change = todayRecords.length - yesterdayRecords.length;
-    const changeElement = document.querySelector('.stat-change.positive span');
-    if (changeElement) {
-        changeElement.innerHTML = change >= 0 ? `+${change} 今日` : `${change} 今日`;
+    // 创建Blob和下载链接
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    
+    link.href = url;
+    link.setAttribute('download', `货品记录_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    showMessage('✅ Excel文件已生成，正在下载...', 'success');
+}
+
+function printRecords() {
+    // 创建一个打印专用的样式
+    const printStyle = document.createElement('style');
+    printStyle.textContent = `
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            .container, .container * {
+                visibility: visible;
+            }
+            .container {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                box-shadow: none;
+            }
+            .role-switch, .btn, .pagination, .export-actions {
+                display: none !important;
+            }
+            .record-item {
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+        }
+    `;
+    
+    document.head.appendChild(printStyle);
+    window.print();
+    document.head.removeChild(printStyle);
+}
+
+// ========== 批量操作 ==========
+function batchDeleteRecords() {
+    // 这里可以实现批量删除功能
+    // 需要先添加复选框选择记录
+    showMessage('批量删除功能开发中...', 'info');
+}
+
+// ========== 工具函数 ==========
+// 显示消息
+function showMessage(text, type) {
+    const messageBox = document.getElementById('formMessage');
+    messageBox.textContent = text;
+    messageBox.className = `message-box ${type}`;
+    messageBox.style.display = 'block';
+    
+    // 3秒后自动隐藏（错误消息5秒）
+    const timeout = type === 'error' ? 5000 : 3000;
+    setTimeout(() => {
+        messageBox.style.display = 'none';
+    }, timeout);
+}
+
+// 显示/隐藏加载状态
+function showLoading(show) {
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (show) {
+        refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 加载中...';
+        refreshBtn.disabled = true;
+    } else {
+        refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i> 刷新';
+        refreshBtn.disabled = false;
     }
 }
 
 // 更新最后同步时间
 function updateLastSyncTime() {
+    const lastSync = document.getElementById('lastSync');
     const now = new Date();
-    const timeStr = now.toLocaleTimeString('zh-CN', { 
-        hour: '2-digit', 
+    const timeString = now.toLocaleTimeString('zh-CN', { 
+        hour12: false,
+        hour: '2-digit',
         minute: '2-digit',
         second: '2-digit'
     });
-    elements.lastSync.textContent = `最后同步: ${timeStr}`;
+    lastSync.textContent = `上次同步: ${timeString}`;
 }
 
-// 显示通知
-function showNotification(title, message, type = 'success') {
-    const notification = elements.notification;
-    const icon = notification.querySelector('.notification-icon i');
-    const titleEl = notification.querySelector('.notification-title');
-    const messageEl = notification.querySelector('.notification-message');
-    
-    // 设置图标和颜色
-    switch (type) {
-        case 'success':
-            icon.className = 'fas fa-check-circle';
-            notification.style.borderLeftColor = 'var(--success-color)';
-            break;
-        case 'error':
-            icon.className = 'fas fa-exclamation-circle';
-            notification.style.borderLeftColor = 'var(--danger-color)';
-            break;
-        case 'warning':
-            icon.className = 'fas fa-exclamation-triangle';
-            notification.style.borderLeftColor = 'var(--warning-color)';
-            break;
-        case 'info':
-            icon.className = 'fas fa-info-circle';
-            notification.style.borderLeftColor = 'var(--info-color)';
-            break;
-    }
-    
-    // 设置内容
-    titleEl.textContent = title;
-    messageEl.textContent = message;
-    
-    // 显示通知
-    notification.classList.remove('hidden');
-    
-    // 自动隐藏
-   (() => {
-        hideNotification setTimeout(() => {
-        hideNotification();
-();
-    }, 500    }, 5000);
-0);
+// 格式化日期时间
+function formatDateTime(isoString) {
+    const date = new Date(isoString);
+    return date.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    }).replace(/\//g, '-');
 }
 
-}
-
-//// 隐藏通知
-function hideNotification() {
-    elements.notification.classList.add('hidden');
-}
-
-// 初始化 隐藏通知
-function hideNotification() {
-    elements.notification.classList.add('hidden');
-}
-
-// 初始化通知关闭按钮通知关闭按钮
-document.querySelector('.notification-close
-document.querySelector('.notification-close')?.addEventListener('click', hideNotification')?.addEventListener('click', hideNotification);
+// 页面加载完成的初始化
+console.log('货品管理账本专业版已加载');
