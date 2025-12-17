@@ -7,8 +7,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="style.css">
-    <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 </head>
 <body>
     <div class="container">
@@ -323,13 +321,37 @@
             url: 'https://gbsqrtaooovsxnwftkbk.supabase.co',
             key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdic3FydGFvb292c3hud2Z0a2JrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ3NjM3ODcsImV4cCI6MjA4MDMzOTc4N30.FKUrAR1qr5bSNEJMomU24aYFDK-fep3eNjZY1n8QgN4'
         };
-        // ========== 配置结束 ==========
         
-        // 初始化Supabase客户端
-        window.supabaseClient = window.supabase.createClient(
-            SUPABASE_CONFIG.url, 
-            SUPABASE_CONFIG.key
-        );
+        console.log('开始加载Supabase...');
+    </script>
+    
+    <!-- 先加载Supabase库 -->
+    <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    
+    <!-- 再加载flatpickr -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    
+    <!-- 最后加载我们的脚本 -->
+    <script>
+        // 确保Supabase库已加载
+        if (typeof supabase === 'undefined') {
+            console.error('❌ Supabase库未加载！');
+            alert('错误：Supabase库加载失败，请刷新页面或检查网络连接');
+        } else {
+            console.log('✅ Supabase库已加载:', supabase);
+            
+            // 初始化Supabase客户端
+            try {
+                window.supabaseClient = supabase.createClient(
+                    SUPABASE_CONFIG.url, 
+                    SUPABASE_CONFIG.key
+                );
+                console.log('✅ Supabase客户端初始化成功');
+            } catch (error) {
+                console.error('❌ Supabase客户端初始化失败:', error);
+                alert('Supabase初始化失败: ' + error.message);
+            }
+        }
     </script>
     
     <script src="script.js"></script>

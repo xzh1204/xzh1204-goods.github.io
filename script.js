@@ -19,58 +19,88 @@ let selectedGoodsId = null;
 let isUpdateMode = false;
 let goodsTemplates = {};
 
+// 检查Supabase是否可用
+function checkSupabase() {
+    if (!window.supabaseClient) {
+        console.error('❌ Supabase客户端未定义');
+        showMessage('❌ 数据库连接失败，请刷新页面重试', 'error');
+        return false;
+    }
+    
+    if (typeof window.supabaseClient.from !== 'function') {
+        console.error('❌ Supabase客户端缺少from方法');
+        console.error('supabaseClient对象:', window.supabaseClient);
+        showMessage('❌ 数据库连接异常，请检查Supabase配置', 'error');
+        return false;
+    }
+    
+    return true;
+}
+
 // 等待DOM加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
-    initApp();
-});
-
-// 初始化应用
-function initApp() {
-    // 获取Supabase客户端
+    console.log('DOM加载完成，开始初始化应用...');
+    console.log('检查Supabase客户端:', window.supabaseClient ? '存在' : '不存在');
+    
+    if (!checkSupabase()) {
+        return;
+    }
+    
     supabase = window.supabaseClient;
+    console.log('Supabase客户端:', supabase);
     
-    // 初始化日期选择器
-    initDatePickers();
-    
-    // 初始化事件监听
-    initEventListeners();
-    
-    // 初始化表单计算
-    initFormCalculations();
-    
-    // 加载现有记录
-    loadAllRecords();
-    
-    // 加载货号模板
-    loadGoodsTemplates();
-    
-    // 更新最后同步时间
-    updateLastSyncTime();
-    
-    // 设置自动刷新（每60秒）
-    setInterval(loadAllRecords, 60000);
-    
-    // 检查URL参数
-    checkUrlParams();
-}
+    try {
+        // 初始化日期选择器
+        initDatePickers();
+        
+        // 初始化事件监听
+        initEventListeners();
+        
+        // 初始化表单计算
+        initFormCalculations();
+        
+        // 加载现有记录
+        loadAllRecords();
+        
+        // 加载货号模板
+        loadGoodsTemplates();
+        
+        // 更新最后同步时间
+        updateLastSyncTime();
+        
+        // 设置自动刷新（每60秒）
+        setInterval(loadAllRecords, 60000);
+        
+        // 检查URL参数
+        checkUrlParams();
+        
+        console.log('✅ 应用初始化完成');
+        
+    } catch (error) {
+        console.error('❌ 应用初始化错误:', error);
+        showMessage('❌ 应用初始化失败: ' + error.message, 'error');
+    }
+});
 
 // 初始化日期选择器
 function initDatePickers() {
-    flatpickr("#startDate", {
-        dateFormat: "Y-m-d",
-        maxDate: "today",
-        onChange: function(selectedDates, dateStr) {
-            currentFilters.startDate = dateStr;
-        }
-    });
-    
-    flatpickr("#endDate", {
-        dateFormat: "Y-m-d",
-        maxDate: "today",
-        onChange: function(selectedDates, dateStr) {
-            currentFilters.endDate = dateStr;
-        }
-    });
+    if (typeof flatpickr !== 'undefined') {
+        flatpickr("#startDate", {
+            dateFormat: "Y-m-d",
+            maxDate: "today",
+            onChange: function(selectedDates, dateStr) {
+                currentFilters.startDate = dateStr;
+            }
+        });
+        
+        flatpickr("#endDate", {
+            dateFormat: "Y-m-d",
+            maxDate: "today",
+            onChange: function(selectedDates, dateStr) {
+                currentFilters.endDate = dateStr;
+            }
+        });
+    }
 }
 
 // ========== 事件监听器初始化 ==========
@@ -91,7 +121,6 @@ function initEventListeners() {
     // 表单相关
     document.getElementById('goodsForm').addEventListener('submit', handleFormSubmit);
     document.getElementById('resetBtn').addEventListener('click', resetForm);
-    // 移除运费计算按钮监听，改为自动计算
     document.getElementById('shippingExpr').addEventListener('input', calculateShippingAuto);
     document.getElementById('saveTemplateBtn').addEventListener('click', saveGoodsTemplate);
     
@@ -157,7 +186,6 @@ function checkUrlParams() {
     const urlParams = new URLSearchParams(window.location.search);
     const goodsId = urlParams.get('goods_id');
     if (goodsId) {
-        // 自动切换到查看模式并筛选该货号
         switchRole('view');
         document.getElementById('filterGoodsId').value = goodsId;
         currentFilters.goodsId = goodsId;
@@ -199,7 +227,6 @@ function updateGoodsList(searchTerm) {
     const goodsList = document.getElementById('goodsList');
     goodsList.innerHTML = '';
     
-    // 从模板中搜索
     const matchedGoods = Object.keys(goodsTemplates).filter(goodsId => 
         goodsId.toLowerCase().includes(searchTerm.toLowerCase())
     );
@@ -215,10 +242,8 @@ function updateGoodsList(searchTerm) {
 function handleGoodsSelect() {
     const selectedValue = document.getElementById('goodsIdSearch').value;
     if (selectedValue && goodsTemplates[selectedValue]) {
-        // 找到匹配的货号模板，自动填充
         fillFormFromTemplate(selectedValue);
     } else if (selectedValue && !isUpdateMode) {
-        // 新货号，只填充货号字段
         document.getElementById('goodsId').value = selectedValue;
     }
 }
@@ -231,14 +256,11 @@ function searchGoods() {
     }
     
     if (goodsTemplates[searchValue]) {
-        // 找到模板，自动填充
         fillFormFromTemplate(searchValue);
         showMessage(`找到货号 "${searchValue}"，已自动填充信息`, 'success');
     } else if (isUpdateMode) {
-        // 更新模式下搜索数据库
         searchGoodsInDatabase(searchValue);
     } else {
-        // 新建模式，设置货号
         document.getElementById('goodsId').value = searchValue;
         document.getElementById('goodsName').value = '';
         showMessage('未找到该货号的模板，请输入码数/款式', 'info');
@@ -246,7 +268,11 @@ function searchGoods() {
 }
 
 function searchGoodsInDatabase(goodsId) {
-    // 从Supabase搜索该货号的记录
+    if (!supabase) {
+        showMessage('❌ 数据库未连接，无法搜索', 'error');
+        return;
+    }
+    
     supabase
         .from('goods_records')
         .select('*')
@@ -278,11 +304,9 @@ function fillFormFromTemplate(goodsId) {
     document.getElementById('shippingExpr').value = template.shipping_fee || '';
     document.getElementById('shippingNote').value = template.shipping_note || '';
     
-    // 触发计算
     document.getElementById('unitPrice').dispatchEvent(new Event('input'));
     calculateShippingAuto();
     
-    // 如果是更新模式，不修改状态，让用户选择新状态
     if (!isUpdateMode) {
         document.getElementById('status').value = template.last_status || '';
         handleStatusChange();
@@ -299,11 +323,9 @@ function fillFormFromRecord(record) {
     document.getElementById('actualIncome').value = record.actual_income || '';
     document.getElementById('remark').value = record.remark || '';
     
-    // 触发计算
     document.getElementById('unitPrice').dispatchEvent(new Event('input'));
     calculateShippingAuto();
     
-    // 如果是更新模式，不自动选择状态
     if (!isUpdateMode) {
         document.getElementById('status').value = record.status || '';
         handleStatusChange();
@@ -315,14 +337,12 @@ function initFormCalculations() {
     const unitPriceInput = document.getElementById('unitPrice');
     const quantityInput = document.getElementById('quantity');
     
-    // 自动计算总价
     function calculateTotalCost() {
         const unitPrice = parseFloat(unitPriceInput.value) || 0;
         const quantity = parseInt(quantityInput.value) || 1;
         const totalCost = unitPrice * quantity;
         document.getElementById('totalCost').value = totalCost.toFixed(2);
         
-        // 如果已经填写收入，重新计算利润
         if (document.getElementById('incomeSection').style.display !== 'none') {
             calculateProfit();
         }
@@ -331,7 +351,6 @@ function initFormCalculations() {
     unitPriceInput.addEventListener('input', calculateTotalCost);
     quantityInput.addEventListener('input', calculateTotalCost);
     
-    // 初始计算
     calculateTotalCost();
 }
 
@@ -344,21 +363,18 @@ function calculateShippingAuto() {
         const expr = shippingExpr.value.trim();
         if (!expr) {
             shippingFeeInput.value = '0';
-            // 重新计算利润
             if (document.getElementById('incomeSection').style.display !== 'none') {
                 calculateProfit();
             }
             return;
         }
         
-        // 安全计算表达式
         const safeExpr = expr.replace(/[^0-9+\-*/().\s]/g, '');
         if (!safeExpr) {
             shippingFeeInput.value = '0';
             return;
         }
         
-        // 使用 Function 构造函数进行安全计算
         const result = Function('"use strict"; return (' + safeExpr + ')')();
         
         if (isNaN(result) || !isFinite(result)) {
@@ -368,18 +384,15 @@ function calculateShippingAuto() {
         const roundedResult = parseFloat(result.toFixed(2));
         shippingFeeInput.value = roundedResult;
         
-        // 重新计算利润
         if (document.getElementById('incomeSection').style.display !== 'none') {
             calculateProfit();
         }
     } catch (error) {
-        // 如果计算失败，尝试直接解析数字
         const numValue = parseFloat(shippingExpr.value);
         if (!isNaN(numValue) && isFinite(numValue)) {
             const roundedValue = parseFloat(numValue.toFixed(2));
             shippingFeeInput.value = roundedValue;
             
-            // 重新计算利润
             if (document.getElementById('incomeSection').style.display !== 'none') {
                 calculateProfit();
             }
@@ -399,14 +412,11 @@ function calculateProfit() {
     const profitDisplay = document.getElementById('profitDisplay');
     profitDisplay.value = profit.toFixed(2);
     
-    // 设置颜色
     profitDisplay.classList.remove('positive', 'negative');
     if (profit > 0) {
         profitDisplay.classList.add('positive');
     } else if (profit < 0) {
         profitDisplay.classList.add('negative');
-    } else {
-        profitDisplay.classList.remove('positive', 'negative');
     }
 }
 
@@ -415,21 +425,11 @@ function handleStatusChange() {
     const status = document.getElementById('status').value;
     const incomeSection = document.getElementById('incomeSection');
     
-    // 如果是卖出状态，显示收入与利润部分
     if (status.includes('已卖出')) {
         incomeSection.style.display = 'block';
-        
-        // 添加收入输入事件监听
-        const actualIncomeInput = document.getElementById('actualIncome');
-        if (actualIncomeInput) {
-            actualIncomeInput.addEventListener('input', calculateProfit);
-        }
-        
-        // 立即计算利润
         calculateProfit();
     } else {
         incomeSection.style.display = 'none';
-        // 清空收入字段
         document.getElementById('actualIncome').value = '';
         document.getElementById('profitDisplay').value = '';
         document.getElementById('profitDisplay').classList.remove('positive', 'negative');
@@ -440,15 +440,12 @@ function handleStatusChange() {
 async function handleFormSubmit(event) {
     event.preventDefault();
     
-    // 验证表单
     if (!validateForm()) {
         return;
     }
     
-    // 收集表单数据
     const formData = collectFormData();
     
-    // 计算利润（如果是卖出状态）
     if (formData.status.includes('已卖出')) {
         const totalCost = parseFloat(document.getElementById('totalCost').value) || 0;
         const shippingFee = parseFloat(document.getElementById('shippingFee').value) || 0;
@@ -457,26 +454,21 @@ async function handleFormSubmit(event) {
         formData.profit = null;
     }
     
-    // 显示提交中状态
     const submitBtn = document.getElementById('submitBtn');
     const originalText = submitBtn.innerHTML;
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> 提交中...';
     submitBtn.disabled = true;
     
     try {
-        // 提交到Supabase
         const success = await submitToSupabase(formData);
         
         if (success) {
             showMessage('✅ 记录提交成功！数据已保存至云端。', 'success');
             
-            // 保存为模板
             saveGoodsTemplateToLocal(formData);
             
-            // 重置表单
             resetForm();
             
-            // 如果是更新模式，自动切换到查看模式
             if (isUpdateMode) {
                 setTimeout(() => {
                     switchRole('view');
@@ -484,10 +476,10 @@ async function handleFormSubmit(event) {
                 }, 1500);
             }
         } else {
-            showMessage('❌ 提交失败，请检查网络连接。', 'error');
+            showMessage('❌ 提交失败，请检查网络连接或稍后重试。', 'error');
         }
     } catch (error) {
-        console.error('提交错误:', error);
+        console.error('提交处理错误:', error);
         showMessage('❌ 提交过程中发生错误: ' + error.message, 'error');
     } finally {
         submitBtn.innerHTML = originalText;
@@ -532,7 +524,6 @@ function collectFormData() {
     const shippingExpr = document.getElementById('shippingExpr').value;
     let shippingFee = document.getElementById('shippingFee').value;
     
-    // 如果没有计算运费，尝试自动计算
     if (!shippingFee && shippingExpr) {
         try {
             const safeExpr = shippingExpr.replace(/[^0-9+\-*/().\s]/g, '');
@@ -565,7 +556,7 @@ function collectFormData() {
     };
 }
 
-// 提交到Supabase
+// 提交到Supabase - 修复网络问题
 async function submitToSupabase(formData) {
     if (!supabase) {
         showMessage('❌ 数据库连接未初始化', 'error');
@@ -573,32 +564,46 @@ async function submitToSupabase(formData) {
     }
     
     try {
+        console.log('正在提交数据到Supabase...');
+        
         const { data, error } = await supabase
             .from('goods_records')
             .insert([formData])
             .select();
         
         if (error) {
-            throw error;
+            console.error('❌ Supabase提交错误详情:', error);
+            
+            if (error.code === '42501') {
+                showMessage('❌ 权限不足：请在Supabase中关闭RLS或添加插入权限', 'error');
+            } else if (error.code === '23502') {
+                showMessage('❌ 必填字段缺失', 'error');
+            } else if (error.code === '42703') {
+                showMessage('❌ 字段名错误：请检查数据库表结构', 'error');
+            } else if (error.message.includes('fetch')) {
+                showMessage('❌ 网络请求失败：请检查网络连接和CORS设置', 'error');
+            } else {
+                showMessage('❌ 提交失败: ' + error.message, 'error');
+            }
+            
+            return false;
         }
         
-        console.log('数据提交成功:', data);
+        console.log('✅ 数据提交成功:', data);
         
-        // 更新本地记录列表
         if (data && data[0]) {
             allGoodsRecords.unshift(data[0]);
         }
         
         return true;
-    } catch (error) {
-        console.error('Supabase提交错误:', error);
         
-        if (error.message.includes('JWT')) {
-            showMessage('❌ 数据库认证失败，请检查API密钥配置', 'error');
-        } else if (error.message.includes('network')) {
-            showMessage('❌ 网络连接失败，请检查网络设置', 'error');
+    } catch (error) {
+        console.error('❌ 提交异常:', error);
+        
+        if (error.message.includes('fetch') || error.message.includes('Network')) {
+            showMessage('❌ 网络错误：请检查网络连接，或可能被浏览器安全策略阻止', 'error');
         } else {
-            showMessage('❌ 提交失败: ' + error.message, 'error');
+            showMessage('❌ 提交异常: ' + error.message, 'error');
         }
         
         return false;
@@ -656,7 +661,6 @@ function loadGoodsTemplates() {
     const savedTemplates = localStorage.getItem('goods_templates');
     if (savedTemplates) {
         goodsTemplates = JSON.parse(savedTemplates);
-        console.log('加载货号模板:', Object.keys(goodsTemplates).length);
     }
 }
 
@@ -673,10 +677,8 @@ function resetForm() {
     document.getElementById('goodsId').removeAttribute('readonly');
     document.getElementById('goodsId').value = '';
     
-    // 触发总价计算
     document.getElementById('unitPrice').dispatchEvent(new Event('input'));
     
-    // 如果是更新模式，清空只读字段
     if (isUpdateMode) {
         document.getElementById('goodsId').setAttribute('readonly', 'true');
     }
@@ -709,6 +711,11 @@ async function loadAllRecords() {
     try {
         showLoading(true);
         
+        if (!supabase) {
+            showMessage('❌ 数据库连接未初始化', 'error');
+            return;
+        }
+        
         const { data, error } = await supabase
             .from('goods_records')
             .select('*')
@@ -721,18 +728,10 @@ async function loadAllRecords() {
         allGoodsRecords = data || [];
         currentRecords = [...allGoodsRecords];
         
-        // 应用当前筛选条件
         applyFilters();
-        
-        // 更新统计信息
         updateStats();
-        
-        // 更新月度统计
         loadMonthlyStats();
-        
-        // 更新货号模板
         updateGoodsTemplatesFromRecords();
-        
         updateLastSyncTime();
         
         showMessage(`✅ 已加载 ${allGoodsRecords.length} 条记录`, 'success');
@@ -772,7 +771,6 @@ function updateGoodsTemplatesFromRecords() {
 function applyFilters() {
     let filteredRecords = [...allGoodsRecords];
     
-    // 按时间周期筛选
     if (currentFilters.period !== 'all') {
         const now = new Date();
         let startDate = new Date();
@@ -797,7 +795,6 @@ function applyFilters() {
         );
     }
     
-    // 按日期范围筛选
     if (currentFilters.startDate) {
         const startDate = new Date(currentFilters.startDate);
         startDate.setHours(0, 0, 0, 0);
@@ -814,21 +811,18 @@ function applyFilters() {
         );
     }
     
-    // 按货号筛选
     if (currentFilters.goodsId) {
         filteredRecords = filteredRecords.filter(record => 
             record.goods_id && record.goods_id.toLowerCase().includes(currentFilters.goodsId.toLowerCase())
         );
     }
     
-    // 按状态筛选
     if (currentFilters.status) {
         filteredRecords = filteredRecords.filter(record => 
             record.status === currentFilters.status
         );
     }
     
-    // 按提交人筛选
     if (currentFilters.submitter) {
         filteredRecords = filteredRecords.filter(record => 
             record.submitter && record.submitter.toLowerCase().includes(currentFilters.submitter.toLowerCase())
@@ -836,14 +830,8 @@ function applyFilters() {
     }
     
     currentRecords = filteredRecords;
-    
-    // 重置到第一页
     currentPage = 1;
-    
-    // 显示记录
     displayRecordsByView();
-    
-    // 更新统计
     updateStats();
 }
 
@@ -865,7 +853,6 @@ function applyDateRange() {
 
 // 清除所有筛选
 function clearAllFilters() {
-    // 重置筛选条件
     currentFilters = {
         period: 'all',
         startDate: null,
@@ -875,7 +862,6 @@ function clearAllFilters() {
         submitter: ''
     };
     
-    // 重置UI
     document.querySelectorAll('.time-btn').forEach(btn => {
         btn.classList.remove('active');
         if (btn.dataset.period === 'all') {
@@ -889,14 +875,12 @@ function clearAllFilters() {
     document.getElementById('filterStatus').value = '';
     document.getElementById('filterSubmitter').value = '';
     
-    // 应用筛选
     applyFilters();
     
     showMessage('筛选条件已清除', 'success');
 }
 
 // ========== 显示记录 ==========
-// 按视图显示记录
 function displayRecordsByView(viewType = null) {
     if (!viewType) {
         const activeTab = document.querySelector('.view-tab.active');
@@ -932,18 +916,15 @@ function displayTimelineRecords() {
     
     emptyMessage.style.display = 'none';
     
-    // 计算分页
     const startIndex = (currentPage - 1) * pageSize;
     const endIndex = startIndex + pageSize;
     const pageRecords = currentRecords.slice(startIndex, endIndex);
     totalPages = Math.ceil(currentRecords.length / pageSize);
     
-    // 更新分页信息
     updatePagination();
     
     let html = '';
     
-    // 按日期分组
     const groupedByDate = {};
     pageRecords.forEach(record => {
         const date = new Date(record.created_at).toLocaleDateString('zh-CN');
@@ -953,7 +934,6 @@ function displayTimelineRecords() {
         groupedByDate[date].push(record);
     });
     
-    // 按日期倒序
     const sortedDates = Object.keys(groupedByDate).sort((a, b) => 
         new Date(b) - new Date(a)
     );
@@ -980,7 +960,6 @@ function displayTimelineRecords() {
     
     recordsList.innerHTML = html;
     
-    // 添加查看详情事件
     document.querySelectorAll('.view-detail-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const goodsId = this.dataset.goodsId;
@@ -1005,7 +984,6 @@ function displayRecordsByGoods() {
     emptyMessage.style.display = 'none';
     pagination.style.display = 'flex';
     
-    // 按货号分组
     const groupedByGoods = {};
     currentRecords.forEach(record => {
         if (!record.goods_id) return;
@@ -1027,14 +1005,12 @@ function displayRecordsByGoods() {
         }
         groupedByGoods[record.goods_id].totalCost += parseFloat(record.total_cost || 0);
         
-        // 更新最后状态和更新时间
         if (new Date(record.created_at) > new Date(groupedByGoods[record.goods_id].lastUpdate)) {
             groupedByGoods[record.goods_id].lastStatus = record.status;
             groupedByGoods[record.goods_id].lastUpdate = record.created_at;
         }
     });
     
-    // 按货号排序
     const sortedGoodsIds = Object.keys(groupedByGoods).sort();
     
     let html = '';
@@ -1070,7 +1046,6 @@ function displayRecordsByGoods() {
                 <div class="goods-records">
         `;
         
-        // 只显示最近3条记录
         const recentRecords = records.slice(0, 3);
         recentRecords.forEach(record => {
             html += createRecordItemHTML(record, true);
@@ -1092,7 +1067,6 @@ function displayRecordsByGoods() {
     
     recordsList.innerHTML = html;
     
-    // 添加详情按钮事件
     document.querySelectorAll('.goods-detail-btn').forEach(btn => {
         btn.addEventListener('click', function() {
             const goodsId = this.dataset.goodsId;
@@ -1117,7 +1091,6 @@ function displayRecordsByMonth() {
     emptyMessage.style.display = 'none';
     pagination.style.display = 'none';
     
-    // 按月分组
     const groupedByMonth = {};
     currentRecords.forEach(record => {
         const date = new Date(record.created_at);
@@ -1155,7 +1128,6 @@ function displayRecordsByMonth() {
         }
     });
     
-    // 按月份倒序
     const sortedMonths = Object.keys(groupedByMonth).sort((a, b) => b.localeCompare(a));
     
     let html = '';
@@ -1201,7 +1173,6 @@ function displayRecordsByMonth() {
                 <div class="month-records">
         `;
         
-        // 显示本月记录（最多5条）
         const recentRecords = monthData.records.sort((a, b) => 
             new Date(b.created_at) - new Date(a.created_at)
         ).slice(0, 5);
@@ -1321,11 +1292,9 @@ function updatePagination() {
     
     pagination.style.display = 'flex';
     
-    // 更新按钮状态
     prevBtn.disabled = currentPage === 1;
     nextBtn.disabled = currentPage === totalPages;
     
-    // 更新页码信息
     pageInfo.textContent = `第 ${currentPage} 页 / 共 ${totalPages} 页`;
 }
 
@@ -1334,12 +1303,10 @@ function changePage(newPage) {
     
     currentPage = newPage;
     
-    // 重新显示当前视图的记录
     const activeTab = document.querySelector('.view-tab.active');
     const viewType = activeTab ? activeTab.dataset.view : 'timeline';
     displayRecordsByView(viewType);
     
-    // 滚动到顶部
     document.getElementById('recordsContainer').scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -1350,10 +1317,8 @@ function updateStats() {
     const totalCostSum = document.getElementById('totalCostSum');
     const avgProfitRate = document.getElementById('avgProfitRate');
     
-    // 基本统计
     totalRecords.textContent = currentRecords.length;
     
-    // 计算总利润和总成本（只计算卖出记录）
     const soldRecords = currentRecords.filter(r => r.profit !== null);
     const profitSum = soldRecords.reduce((sum, record) => sum + (parseFloat(record.profit) || 0), 0);
     const costSum = soldRecords.reduce((sum, record) => sum + (parseFloat(record.total_cost) || 0), 0);
@@ -1362,10 +1327,8 @@ function updateStats() {
     totalProfitSum.textContent = profitSum.toFixed(2);
     totalCostSum.textContent = costSum.toFixed(2);
     
-    // 设置颜色
     totalProfitSum.style.color = profitSum >= 0 ? '#2ecc71' : '#e74c3c';
     
-    // 计算平均利润率
     let avgRate = 0;
     if (incomeSum > 0 && soldRecords.length > 0) {
         avgRate = (profitSum / incomeSum) * 100;
@@ -1379,10 +1342,8 @@ async function loadMonthlyStats() {
     const selectedMonth = document.getElementById('monthSelector').value;
     const monthlyStatsDiv = document.getElementById('monthlyStats');
     
-    // 生成月份选项
     const monthSelector = document.getElementById('monthSelector');
     if (monthSelector.options.length === 0) {
-        // 获取所有记录的月份
         const monthsSet = new Set();
         allGoodsRecords.forEach(record => {
             const date = new Date(record.created_at);
@@ -1390,10 +1351,8 @@ async function loadMonthlyStats() {
             monthsSet.add(monthKey);
         });
         
-        // 排序月份（最近的在前）
         const sortedMonths = Array.from(monthsSet).sort((a, b) => b.localeCompare(a));
         
-        // 添加选项
         sortedMonths.forEach(monthKey => {
             const [year, month] = monthKey.split('-');
             const option = document.createElement('option');
@@ -1402,13 +1361,11 @@ async function loadMonthlyStats() {
             monthSelector.appendChild(option);
         });
         
-        // 默认选择最近一个月
         if (sortedMonths.length > 0) {
             monthSelector.value = sortedMonths[0];
         }
     }
     
-    // 计算月度统计
     const monthlyData = calculateMonthlyStats(selectedMonth);
     
     let html = `
@@ -1453,18 +1410,15 @@ async function loadMonthlyStats() {
 }
 
 function calculateMonthlyStats(monthKey) {
-    // 筛选指定月份的记录
     const monthRecords = allGoodsRecords.filter(record => {
         const date = new Date(record.created_at);
         const recordMonthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         return recordMonthKey === monthKey;
     });
     
-    // 解析月份名称
     const [year, month] = monthKey.split('-');
     const monthName = `${year}年${parseInt(month)}月`;
     
-    // 计算统计
     const soldRecords = monthRecords.filter(r => r.status && r.status.includes('卖出'));
     const unsoldRecords = monthRecords.filter(r => !r.status || !r.status.includes('卖出'));
     
@@ -1490,7 +1444,6 @@ function calculateMonthlyStats(monthKey) {
 function showGoodsDetailModal(goodsId) {
     selectedGoodsId = goodsId;
     
-    // 获取该货号的所有记录
     const goodsRecords = allGoodsRecords.filter(record => record.goods_id === goodsId);
     
     if (goodsRecords.length === 0) {
@@ -1498,13 +1451,10 @@ function showGoodsDetailModal(goodsId) {
         return;
     }
     
-    // 更新模态框标题
     document.getElementById('modalGoodsId').textContent = goodsId;
     
-    // 生成历史记录HTML
     let html = '';
     
-    // 按时间倒序
     const sortedRecords = goodsRecords.sort((a, b) => 
         new Date(b.created_at) - new Date(a.created_at)
     );
@@ -1579,14 +1529,11 @@ function showGoodsDetailModal(goodsId) {
         `;
     });
     
-    // 更新模态框内容
     document.getElementById('goodsHistory').innerHTML = html;
     
-    // 显示模态框
     document.getElementById('goodsDetailModal').style.display = 'block';
     document.getElementById('overlay').style.display = 'block';
     
-    // 添加样式
     if (!document.querySelector('#history-styles')) {
         const styleEl = document.createElement('style');
         styleEl.id = 'history-styles';
@@ -1690,7 +1637,6 @@ function copyFilteredRecords() {
         return;
     }
     
-    // 构建表格格式文本
     let text = '货品管理记录汇总\n\n';
     text += '时间,货号,码数/款式,状态,单价,数量,总成本,运费,运费备注,实际收入,利润,提交人,备注\n';
     text += '----------------------------------------------------------------------------------------------------------------------\n';
@@ -1711,7 +1657,6 @@ function copyFilteredRecords() {
         text += `${record.remark || ''}\n`;
     });
     
-    // 复制到剪贴板
     navigator.clipboard.writeText(text).then(() => {
         showMessage('✅ 所有记录已复制到剪贴板，可粘贴到Excel中', 'success');
     }).catch(err => {
@@ -1726,7 +1671,6 @@ function exportToExcel() {
         return;
     }
     
-    // 创建CSV数据
     let csv = '时间,货号,码数/款式,状态,单价,数量,总成本,运费,运费备注,实际收入,利润,提交人,备注\n';
     
     currentRecords.forEach(record => {
@@ -1745,7 +1689,6 @@ function exportToExcel() {
         csv += `"${record.remark || ''}"\n`;
     });
     
-    // 创建Blob和下载链接
     const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -1760,7 +1703,6 @@ function exportToExcel() {
 }
 
 function printRecords() {
-    // 创建一个打印专用的样式
     const printStyle = document.createElement('style');
     printStyle.textContent = `
         @media print {
@@ -1794,8 +1736,6 @@ function printRecords() {
 
 // ========== 批量操作 ==========
 function batchDeleteRecords() {
-    // 这里可以实现批量删除功能
-    // 需要先添加复选框选择记录
     showMessage('批量删除功能开发中...', 'info');
 }
 
@@ -1807,7 +1747,6 @@ function showMessage(text, type) {
     messageBox.className = `message-box ${type}`;
     messageBox.style.display = 'block';
     
-    // 3秒后自动隐藏（错误消息5秒）
     const timeout = type === 'error' ? 5000 : 3000;
     setTimeout(() => {
         messageBox.style.display = 'none';
