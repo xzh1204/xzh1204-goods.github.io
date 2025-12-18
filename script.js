@@ -1,5 +1,4 @@
-// script.js - 货品管理账本专业版主逻辑
-
+javascript
 // ========== 全局变量和初始化 ==========
 let currentRecords = [];
 let allGoodsRecords = [];
@@ -19,69 +18,20 @@ let selectedGoodsId = null;
 let isUpdateMode = false;
 let goodsTemplates = {};
 
-// 等待所有资源加载完成
-window.addEventListener('load', function() {
-    console.log('页面完全加载完成，开始初始化应用...');
-    initApp();
-});
-
-// 初始化应用
-function initApp() {
-    console.log('开始初始化应用...');
-    console.log('检查Supabase客户端:', window.supabaseClient ? '存在' : '不存在');
+// 等待DOM加载完成后初始化
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM加载完成，开始初始化应用...');
     
-    // 获取Supabase客户端
+    // ✅ 只修改这里：获取Supabase客户端
     supabase = window.supabaseClient;
     
     if (!supabase) {
-        console.error('❌ Supabase客户端未找到！');
-        console.error('可能的原因：');
-        console.error('1. supabase.min.js 文件未下载');
-        console.error('2. 文件路径不正确');
-        console.error('3. Supabase库加载失败');
-        
-        showMessage('❌ 数据库连接失败：请确保已下载supabase.min.js文件', 'error', 0);
+        console.error('❌ Supabase客户端未初始化');
+        showMessage('❌ 数据库连接失败，请刷新页面重试', 'error');
         return;
     }
     
-    console.log('✅ Supabase客户端获取成功');
-    
-    try {
-        // 初始化日期选择器
-        initDatePickers();
-        
-        // 初始化事件监听
-        initEventListeners();
-        
-        // 初始化表单计算
-        initFormCalculations();
-        
-        // 加载现有记录
-        loadAllRecords();
-        
-        // 加载货号模板
-        loadGoodsTemplates();
-        
-        // 更新最后同步时间
-        updateLastSyncTime();
-        
-        // 设置自动刷新（每60秒）
-        setInterval(loadAllRecords, 60000);
-        
-        // 检查URL参数
-        checkUrlParams();
-        
-        console.log('✅ 应用初始化完成');
-        showMessage('✅ 应用已就绪', 'success', 3000);
-        
-    } catch (error) {
-        console.error('应用初始化错误:', error);
-        showMessage('❌ 应用初始化失败: ' + error.message, 'error');
-    }
-}
-
-// 其余代码保持不变...
-// [保持你原有的所有其他函数代码]
+    console.log('✅ Supabase连接成功');
 // 初始化日期选择器
 function initDatePickers() {
     if (typeof flatpickr !== 'undefined') {

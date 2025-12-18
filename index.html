@@ -7,12 +7,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="style.css">
-    
-    <!-- 加载本地Supabase库 -->
-    <script src="supabase.min.js"></script>
-    
-    <!-- 加载flatpickr -->
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 </head>
 <body>
     <div class="container">
@@ -322,71 +316,40 @@
 
     <!-- 配置Supabase -->
     <script>
-        console.log('页面加载完成，正在配置Supabase...');
+        // ========== 重要配置 ==========
+        const SUPABASE_CONFIG = {
+            url: 'https://gbsqrtaooovsxnwftkbk.supabase.co',
+            key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdic3FydGFvb292c3hud2Z0a2JrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ3NjM3ODcsImV4cCI6MjA4MDMzOTc4N30.FKUrAR1qr5bSNEJMomU24aYFDK-fep3eNjZY1n8QgN4'
+        };
         
-        // 等待Supabase库加载
+        console.log('开始加载Supabase...');
+    </script>
+    
+    <!-- 先加载Supabase库 -->
+    <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    
+    <!-- 再加载flatpickr -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    
+    <!-- 最后加载我们的脚本 -->
+    <script>
+        // 确保Supabase库已加载
         if (typeof supabase === 'undefined') {
-            console.error('❌ Supabase库未加载！请确保supabase.min.js文件存在');
-            
-            // 显示错误信息
-            const errorDiv = document.createElement('div');
-            errorDiv.style.cssText = `
-                background: #f8d7da;
-                color: #721c24;
-                padding: 20px;
-                border-radius: 8px;
-                margin: 20px;
-                border: 1px solid #f5c6cb;
-                text-align: center;
-            `;
-            errorDiv.innerHTML = `
-                <h3><i class="fas fa-exclamation-triangle"></i> 缺少Supabase库文件</h3>
-                <p>请下载 supabase.min.js 文件并放在项目文件夹中</p>
-                <p>
-                    <a href="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js" 
-                       download="supabase.min.js"
-                       style="padding: 10px 20px; background: #dc3545; color: white; text-decoration: none; border-radius: 4px; display: inline-block; margin-top: 10px;">
-                        <i class="fas fa-download"></i> 点击下载Supabase库
-                    </a>
-                </p>
-                <p style="margin-top: 10px; font-size: 0.9em; color: #666;">
-                    下载后，刷新页面即可
-                </p>
-            `;
-            
-            const container = document.querySelector('.container');
-            if (container) {
-                container.insertBefore(errorDiv, container.firstChild);
-            }
+            console.error('❌ Supabase库未加载！');
+            alert('错误：Supabase库加载失败，请刷新页面或检查网络连接');
         } else {
-            console.log('✅ Supabase库已加载');
+            console.log('✅ Supabase库已加载:', supabase);
             
             // 初始化Supabase客户端
             try {
-                const SUPABASE_URL = 'https://gbsqrtaooovsxnwftkbk.supabase.co';
-                const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdic3FydGFvb292c3hud2Z0a2JrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ3NjM3ODcsImV4cCI6MjA4MDMzOTc4N30.FKUrAR1qr5bSNEJMomU24aYFDK-fep3eNjZY1n8QgN4';
-                
-                window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+                window.supabaseClient = supabase.createClient(
+                    SUPABASE_CONFIG.url, 
+                    SUPABASE_CONFIG.key
+                );
                 console.log('✅ Supabase客户端初始化成功');
-                
             } catch (error) {
                 console.error('❌ Supabase客户端初始化失败:', error);
-                
-                const errorDiv = document.createElement('div');
-                errorDiv.style.cssText = `
-                    background: #fff3cd;
-                    color: #856404;
-                    padding: 15px;
-                    border-radius: 8px;
-                    margin: 20px;
-                    border: 1px solid #ffeaa7;
-                `;
-                errorDiv.innerHTML = `<i class="fas fa-exclamation-circle"></i> Supabase配置错误: ${error.message}`;
-                
-                const container = document.querySelector('.container');
-                if (container) {
-                    container.insertBefore(errorDiv, container.firstChild);
-                }
+                alert('Supabase初始化失败: ' + error.message);
             }
         }
     </script>
