@@ -19,35 +19,32 @@ let selectedGoodsId = null;
 let isUpdateMode = false;
 let goodsTemplates = {};
 
-// 检查Supabase是否可用
-function checkSupabase() {
-    if (!window.supabaseClient) {
-        console.error('❌ Supabase客户端未定义');
-        showMessage('❌ 数据库连接失败，请刷新页面重试', 'error');
-        return false;
-    }
-    
-    if (typeof window.supabaseClient.from !== 'function') {
-        console.error('❌ Supabase客户端缺少from方法');
-        console.error('supabaseClient对象:', window.supabaseClient);
-        showMessage('❌ 数据库连接异常，请检查Supabase配置', 'error');
-        return false;
-    }
-    
-    return true;
-}
+// 等待所有资源加载完成
+window.addEventListener('load', function() {
+    console.log('页面完全加载完成，开始初始化应用...');
+    initApp();
+});
 
-// 等待DOM加载完成后初始化
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM加载完成，开始初始化应用...');
+// 初始化应用
+function initApp() {
+    console.log('开始初始化应用...');
     console.log('检查Supabase客户端:', window.supabaseClient ? '存在' : '不存在');
     
-    if (!checkSupabase()) {
+    // 获取Supabase客户端
+    supabase = window.supabaseClient;
+    
+    if (!supabase) {
+        console.error('❌ Supabase客户端未找到！');
+        console.error('可能的原因：');
+        console.error('1. supabase.min.js 文件未下载');
+        console.error('2. 文件路径不正确');
+        console.error('3. Supabase库加载失败');
+        
+        showMessage('❌ 数据库连接失败：请确保已下载supabase.min.js文件', 'error', 0);
         return;
     }
     
-    supabase = window.supabaseClient;
-    console.log('Supabase客户端:', supabase);
+    console.log('✅ Supabase客户端获取成功');
     
     try {
         // 初始化日期选择器
@@ -75,13 +72,16 @@ document.addEventListener('DOMContentLoaded', function() {
         checkUrlParams();
         
         console.log('✅ 应用初始化完成');
+        showMessage('✅ 应用已就绪', 'success', 3000);
         
     } catch (error) {
-        console.error('❌ 应用初始化错误:', error);
+        console.error('应用初始化错误:', error);
         showMessage('❌ 应用初始化失败: ' + error.message, 'error');
     }
-});
+}
 
+// 其余代码保持不变...
+// [保持你原有的所有其他函数代码]
 // 初始化日期选择器
 function initDatePickers() {
     if (typeof flatpickr !== 'undefined') {
