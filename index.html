@@ -314,47 +314,86 @@
     <!-- 遮罩层 -->
     <div id="overlay" class="overlay" style="display: none;"></div>
 
-    <!-- 配置Supabase -->
-    <script>
-        // ========== 重要配置 ==========
-        const SUPABASE_CONFIG = {
-            url: 'https://gbsqrtaooovsxnwftkbk.supabase.co',
-            key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdic3FydGFvb292c3hud2Z0a2JrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ3NjM3ODcsImV4cCI6MjA4MDMzOTc4N30.FKUrAR1qr5bSNEJMomU24aYFDK-fep3eNjZY1n8QgN4'
-        };
+   <!-- 配置Supabase -->
+<script>
+    console.log('开始配置Supabase...');
+    
+    // 你的Supabase配置
+    const SUPABASE_URL = 'https://gbsqrtaooovsxnwftkbk.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdic3FydGFvb292c3hud2Z0a2JrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ3NjM3ODcsImV4cCI6MjA4MDMzOTc4N30.FKUrAR1qr5bSNEJMomU24aYFDK-fep3eNjZY1n8QgN4';
+    
+    // 主初始化函数
+    function initializeSupabase() {
+        console.log('正在检查Supabase库...');
         
-        console.log('开始加载Supabase...');
-    </script>
-    
-    <!-- 先加载Supabase库 -->
-    <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-    
-    <!-- 再加载flatpickr -->
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    
-    <!-- 最后加载我们的脚本 -->
-    <script>
-        // 确保Supabase库已加载
         if (typeof supabase === 'undefined') {
-            console.error('❌ Supabase库未加载！');
-            alert('错误：Supabase库加载失败，请刷新页面或检查网络连接');
-        } else {
-            console.log('✅ Supabase库已加载:', supabase);
+            console.error('Supabase库未加载，尝试重新加载...');
             
-            // 初始化Supabase客户端
-            try {
-                window.supabaseClient = supabase.createClient(
-                    SUPABASE_CONFIG.url, 
-                    SUPABASE_CONFIG.key
-                );
-                console.log('✅ Supabase客户端初始化成功');
-            } catch (error) {
-                console.error('❌ Supabase客户端初始化失败:', error);
-                alert('Supabase初始化失败: ' + error.message);
-            }
+            // 创建script元素动态加载
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
+            
+            script.onload = function() {
+                console.log('✅ Supabase库加载成功');
+                createSupabaseClient();
+            };
+            
+            script.onerror = function() {
+                console.error('❌ Supabase库加载失败');
+                // 不阻止应用运行，只是没有数据库功能
+            };
+            
+            document.head.appendChild(script);
+        } else {
+            console.log('✅ Supabase库已加载');
+            createSupabaseClient();
         }
-    </script>
+    }
     
-    <script src="script.js"></script>
+    // 创建Supabase客户端
+    function createSupabaseClient() {
+        try {
+            console.log('正在创建Supabase客户端...');
+            
+            window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            
+            console.log('✅ Supabase客户端创建成功');
+            
+            // 测试连接（不影响主应用）
+            testConnection();
+            
+        } catch (error) {
+            console.error('创建Supabase客户端失败:', error);
+        }
+    }
+    
+    // 测试连接（静默测试，不干扰用户）
+    async function testConnection() {
+        try {
+            const { data, error } = await window.supabaseClient
+                .from('goods_records')
+                .select('id')
+                .limit(1);
+            
+            if (error) {
+                console.warn('数据库连接测试失败:', error.message);
+            } else {
+                console.log('✅ 数据库连接测试成功');
+            }
+        } catch (err) {
+            console.warn('连接测试异常:', err.message);
+        }
+    }
+    
+    // 页面加载完成后开始初始化
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM加载完成，开始初始化Supabase...');
+        initializeSupabase();
+    });
+</script>
+
+<!-- 保持原有的script.js引用 -->
+<script src="script.js"></script>
 
 </body>
 </html>
