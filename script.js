@@ -1,7 +1,8 @@
 // script.js - 货品管理账本专业版主逻辑
 
+// script.js - 货品管理账本专业版主逻辑
+
 // ========== 全局变量和初始化 ==========
-// ✅ 完全保持你原来的全局变量
 let currentRecords = [];
 let allGoodsRecords = [];
 let currentFilters = {
@@ -15,43 +16,63 @@ let currentFilters = {
 let currentPage = 1;
 let pageSize = 20;
 let totalPages = 1;
-let supabase = null;  // 这个变量名保持不变
+let supabase = null;
 let selectedGoodsId = null;
 let isUpdateMode = false;
 let goodsTemplates = {};
 
-// ✅ 保持你原来的DOMContentLoaded监听
+// 等待DOM加载完成后初始化
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM加载完成，开始初始化应用...');
     
-    // ✅ 获取Supabase客户端（如果存在）
+    // 等待一小会儿确保supabaseClient已初始化
+    setTimeout(() => {
+        initApp();
+    }, 500);
+});
+
+// 初始化应用
+function initApp() {
+    console.log('正在初始化应用...');
+    
+    // 尝试获取Supabase客户端
     supabase = window.supabaseClient;
     
     if (!supabase) {
-        console.warn('Supabase客户端未初始化，部分功能受限');
-        // 仍然继续初始化，只是没有数据库功能
+        console.warn('Supabase客户端未初始化，使用本地模式');
+        // 仍然继续，只是没有数据库功能
     } else {
         console.log('✅ Supabase连接成功');
     }
     
-    // ✅ 完全保持你原来的初始化代码
-    initApp();
-});
-
-// ✅ 完全保持你原来的initApp函数
-function initApp() {
-    // ✅ 完全保持你原来的代码
-    initDatePickers();
-    initEventListeners();
-    initFormCalculations();
-    loadAllRecords();
-    loadGoodsTemplates();
-    updateLastSyncTime();
-    setInterval(loadAllRecords, 60000);
-    checkUrlParams();
-    console.log('应用初始化完成');
+    // 初始化所有功能
+    try {
+        initDatePickers();
+        initEventListeners();
+        initFormCalculations();
+        
+        // 检查displayRecords函数是否存在
+        if (typeof displayRecords === 'undefined') {
+            console.error('displayRecords函数未定义！');
+            // 临时定义一个
+            window.displayRecords = function(records) {
+                console.log('临时displayRecords:', records);
+            };
+        }
+        
+        loadAllRecords();
+        loadGoodsTemplates();
+        updateLastSyncTime();
+        setInterval(loadAllRecords, 60000);
+        checkUrlParams();
+        
+        console.log('✅ 应用初始化完成');
+        
+    } catch (error) {
+        console.error('应用初始化错误:', error);
+        showMessage('应用初始化失败: ' + error.message, 'error');
+    }
 }
-
 // ✅ 从这开始，后面所有函数都保持你原来的代码
 // initDatePickers, initEventListeners, initFormCalculations等都不需要修改
 // 利润计算、总价计算、状态变化处理等所有业务逻辑都保持原样
@@ -746,18 +767,18 @@ function switchRole(role) {
     }
 }
 
-// 加载所有记录 - 只在开头添加降级处理
+// 加载所有记录
 async function loadAllRecords() {
     try {
         showLoading(true);
         
-        // ✅ 添加：检查Supabase连接
+        // 检查Supabase连接
         if (!supabase) {
-            console.warn('Supabase未连接，跳过数据加载');
+            console.log('Supabase未连接，使用本地数据');
             
-            // 清空现有数据
-            allGoodsRecords = [];
-            currentRecords = [];
+            // 使用本地存储的数据或空数组
+            allGoodsRecords = JSON.parse(localStorage.getItem('local_goods_records') || '[]');
+            currentRecords = [...allGoodsRecords];
             
             // 更新UI
             applyFilters();
@@ -765,14 +786,19 @@ async function loadAllRecords() {
             loadMonthlyStats();
             updateLastSyncTime();
             
-            // 显示空状态
-            displayRecords([]);
+            // 确保displayRecords函数存在
+            if (typeof displayRecords === 'function') {
+                displayRecords(currentRecords);
+            } else {
+                console.error('displayRecords函数不存在！');
+                // 临时处理：更新记录列表
+                updateRecordsDisplay();
+            }
             
-            showMessage('⚠️ 数据库未连接，无法加载记录', 'warning');
             return;
         }
         
-        // ✅ 保持你原来的数据库查询代码
+        // 原有的数据库代码
         const { data, error } = await supabase
             .from('goods_records')
             .select('*')
@@ -791,17 +817,24 @@ async function loadAllRecords() {
         updateGoodsTemplatesFromRecords();
         updateLastSyncTime();
         
+        if (typeof displayRecords === 'function') {
+            displayRecords(currentRecords);
+        }
+        
         showMessage(`✅ 已加载 ${allGoodsRecords.length} 条记录`, 'success');
         
     } catch (error) {
         console.error('加载记录错误:', error);
         showMessage('❌ 加载记录失败: ' + error.message, 'error');
-        displayRecords([]);
+        
+        // 错误时显示空状态
+        if (typeof displayRecords === 'function') {
+            displayRecords([]);
+        }
     } finally {
         showLoading(false);
     }
-}
-// 从记录更新货号模板
+}// 从记录更新货号模板
 function updateGoodsTemplatesFromRecords() {
     allGoodsRecords.forEach(record => {
         if (!record.goods_id) return;
@@ -1848,3 +1881,145 @@ function formatDateTime(isoString) {
 
 // 页面加载完成的初始化
 console.log('货品管理账本专业版已加载');
+// 如果原代码中缺少这些函数，临时添加
+// 创建单个记录项的HTML
+function createRecordItemHTML(record, compact = false) {
+    const profit = record.profit !== null ? parseFloat(record.profit) : null;
+    const profitClass = profit !== null ? 
+        (profit > 0 ? 'positive' : profit < 0 ? 'negative' : '') : '';
+    
+    const statusClass = record.status.includes('卖出') ? 'sold' : 
+                       record.status.includes('退回') ? 'returned' :
+                       record.status.includes('下架') ? 'offShelf' : 'unsold';
+    
+    const actualIncomeText = record.actual_income !== null ? 
+        `<div class="record-field">
+            <span class="record-label">实际收入:</span>
+            <span class="record-value">${record.actual_income.toFixed(2)} 元</span>
+        </div>` : '';
+    
+    const profitText = profit !== null ? 
+        `<div class="record-field">
+            <span class="record-label">利润:</span>
+            <span class="record-profit ${profitClass}">${profit.toFixed(2)} 元</span>
+        </div>` : '';
+    
+    const remarkText = record.remark ? 
+        `<div class="record-field">
+            <span class="record-label">备注:</span>
+            <span class="record-value">${record.remark}</span>
+        </div>` : '';
+    
+    const compactClass = compact ? 'compact' : '';
+    
+    return `
+        <div class="record-item ${statusClass} ${compactClass}">
+            <div class="record-header">
+                <div class="record-title">
+                    <i class="fas fa-barcode"></i> ${record.goods_id}
+                    ${record.goods_name && record.goods_name !== record.goods_id ? 
+                        `<span class="record-subtitle">${record.goods_name}</span>` : ''}
+                </div>
+                <div class="record-status ${statusClass}">${record.status}</div>
+            </div>
+            
+            <div class="record-body">
+                <div class="record-field">
+                    <span class="record-label">成本:</span>
+                    <span class="record-value">
+                        ${record.unit_price.toFixed(2)} 元 × ${record.quantity} = ${record.total_cost.toFixed(2)} 元
+                    </span>
+                </div>
+                
+                <div class="record-field">
+                    <span class="record-label">运费:</span>
+                    <span class="record-value">
+                        ${record.shipping_fee.toFixed(2)} 元
+                        ${record.shipping_note ? `(${record.shipping_note})` : ''}
+                    </span>
+                </div>
+                
+                ${actualIncomeText}
+                ${profitText}
+                ${remarkText}
+            </div>
+            
+            <div class="record-footer">
+                <div class="record-info">
+                    <span><i class="fas fa-user"></i> ${record.submitter}</span>
+                    <span><i class="fas fa-clock"></i> ${formatDateTime(record.created_at)}</span>
+                </div>
+                <div class="record-actions">
+                    <button class="record-action-btn view-detail-btn" data-goods-id="${record.goods_id}">
+                        <i class="fas fa-info-circle"></i> 详情
+                    </button>
+                    <button class="record-action-btn update-btn" data-record-id="${record.id}">
+                        <i class="fas fa-edit"></i> 更新
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+// ========== 显示记录函数 ==========
+function displayRecords(records) {
+    const recordsList = document.getElementById('recordsList');
+    const emptyMessage = document.getElementById('emptyMessage');
+    
+    if (!recordsList) return;
+    
+    if (!records || records.length === 0) {
+        recordsList.innerHTML = '';
+        if (emptyMessage) emptyMessage.style.display = 'block';
+        return;
+    }
+    
+    if (emptyMessage) emptyMessage.style.display = 'none';
+    
+    let html = '';
+    
+    // 按日期分组
+    const groupedByDate = {};
+    records.forEach(record => {
+        const date = new Date(record.created_at).toLocaleDateString('zh-CN');
+        if (!groupedByDate[date]) {
+            groupedByDate[date] = [];
+        }
+        groupedByDate[date].push(record);
+    });
+    
+    // 按日期倒序
+    const sortedDates = Object.keys(groupedByDate).sort((a, b) => 
+        new Date(b) - new Date(a)
+    );
+    
+    sortedDates.forEach(date => {
+        html += `
+            <div class="date-group">
+                <div class="date-header">
+                    <i class="fas fa-calendar-day"></i> ${date}
+                    <span class="date-count">${groupedByDate[date].length} 条记录</span>
+                </div>
+                <div class="date-records">
+        `;
+        
+        groupedByDate[date].forEach(record => {
+            html += createRecordItemHTML(record);
+        });
+        
+        html += `
+                </div>
+            </div>
+        `;
+    });
+    
+    recordsList.innerHTML = html;
+    
+    // 添加查看详情事件
+    document.querySelectorAll('.view-detail-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const goodsId = this.dataset.goodsId;
+            showGoodsDetailModal(goodsId);
+        });
+    });
+}

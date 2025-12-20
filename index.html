@@ -318,77 +318,56 @@
 <script>
     console.log('开始配置Supabase...');
     
-    // 你的Supabase配置
-    const SUPABASE_URL = 'https://gbsqrtaooovsxnwftkbk.supabase.co';
-    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdic3FydGFvb292c3hud2Z0a2JrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ3NjM3ODcsImV4cCI6MjA4MDMzOTc4N30.FKUrAR1qr5bSNEJMomU24aYFDK-fep3eNjZY1n8QgN4';
-    
-    // 主初始化函数
-    function initializeSupabase() {
-        console.log('正在检查Supabase库...');
+    // 修复：确保supabase库已加载
+    function checkAndInitSupabase() {
+        console.log('检查supabase变量:', window.supabase);
         
-        if (typeof supabase === 'undefined') {
-            console.error('Supabase库未加载，尝试重新加载...');
+        // 注意：这里检查的是 window.supabase，不是全局supabase
+        if (!window.supabase) {
+            console.log('window.supabase不存在，检查CDN是否加载...');
             
-            // 创建script元素动态加载
+            // 如果CDN没加载，尝试其他CDN
             const script = document.createElement('script');
             script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
             
             script.onload = function() {
-                console.log('✅ Supabase库加载成功');
-                createSupabaseClient();
+                console.log('✅ Supabase CDN加载成功');
+                initSupabaseClient();
             };
             
             script.onerror = function() {
-                console.error('❌ Supabase库加载失败');
-                // 不阻止应用运行，只是没有数据库功能
+                console.error('❌ Supabase CDN加载失败');
+                // 不阻止应用运行
             };
             
             document.head.appendChild(script);
         } else {
-            console.log('✅ Supabase库已加载');
-            createSupabaseClient();
+            console.log('✅ Supabase库已存在');
+            initSupabaseClient();
         }
     }
     
-    // 创建Supabase客户端
-    function createSupabaseClient() {
+    function initSupabaseClient() {
         try {
-            console.log('正在创建Supabase客户端...');
+            console.log('正在初始化Supabase客户端...');
             
-            window.supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+            const SUPABASE_URL = 'https://gbsqrtaooovsxnwftkbk.supabase.co';
+            const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdic3FydGFvb292c3hud2Z0a2JrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ3NjM3ODcsImV4cCI6MjA4MDMzOTc4N30.FKUrAR1qr5bSNEJMomU24aYFDK-fep3eNjZY1n8QgN4';
             
-            console.log('✅ Supabase客户端创建成功');
+            // 重要：使用 window.supabase.createClient
+            window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
             
-            // 测试连接（不影响主应用）
-            testConnection();
+            console.log('✅ Supabase客户端初始化成功');
             
         } catch (error) {
-            console.error('创建Supabase客户端失败:', error);
+            console.error('Supabase客户端初始化失败:', error);
         }
     }
     
-    // 测试连接（静默测试，不干扰用户）
-    async function testConnection() {
-        try {
-            const { data, error } = await window.supabaseClient
-                .from('goods_records')
-                .select('id')
-                .limit(1);
-            
-            if (error) {
-                console.warn('数据库连接测试失败:', error.message);
-            } else {
-                console.log('✅ 数据库连接测试成功');
-            }
-        } catch (err) {
-            console.warn('连接测试异常:', err.message);
-        }
-    }
-    
-    // 页面加载完成后开始初始化
+    // 页面加载后初始化
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('DOM加载完成，开始初始化Supabase...');
-        initializeSupabase();
+        console.log('DOM加载完成');
+        checkAndInitSupabase();
     });
 </script>
 
