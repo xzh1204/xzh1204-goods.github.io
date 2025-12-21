@@ -7,11 +7,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <link rel="stylesheet" href="style.css">
-
-<!-- ✅ 加载本地Supabase库 -->
-    <script src="supabase.js"></script>
-    
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 </head>
 <body>
     <div class="container">
@@ -319,66 +314,46 @@
     <!-- 遮罩层 -->
     <div id="overlay" class="overlay" style="display: none;"></div>
 
-   <!-- 配置Supabase -->
-<script>
-    console.log('开始配置Supabase...');
-    
-    // 修复：确保supabase库已加载
-    function checkAndInitSupabase() {
-        console.log('检查supabase变量:', window.supabase);
+    <!-- 配置Supabase -->
+    <script>
+        // ========== 重要配置 ==========
+        const SUPABASE_CONFIG = {
+            url: 'https://gbsqrtaooovsxnwftkbk.supabase.co',
+            key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdic3FydGFvb292c3hud2Z0a2JrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ3NjM3ODcsImV4cCI6MjA4MDMzOTc4N30.FKUrAR1qr5bSNEJMomU24aYFDK-fep3eNjZY1n8QgN4'
+        };
         
-        // 注意：这里检查的是 window.supabase，不是全局supabase
-        if (!window.supabase) {
-            console.log('window.supabase不存在，检查CDN是否加载...');
-            
-            // 如果CDN没加载，尝试其他CDN
-            const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js';
-            
-            script.onload = function() {
-                console.log('✅ Supabase CDN加载成功');
-                initSupabaseClient();
-            };
-            
-            script.onerror = function() {
-                console.error('❌ Supabase CDN加载失败');
-                // 不阻止应用运行
-            };
-            
-            document.head.appendChild(script);
+        console.log('开始加载Supabase...');
+    </script>
+    
+    <!-- 先加载Supabase库 -->
+    <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    
+    <!-- 再加载flatpickr -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    
+    <!-- 最后加载我们的脚本 -->
+    <script>
+        // 确保Supabase库已加载
+        if (typeof supabase === 'undefined') {
+            console.error('❌ Supabase库未加载！');
+            alert('错误：Supabase库加载失败，请刷新页面或检查网络连接');
         } else {
-            console.log('✅ Supabase库已存在');
-            initSupabaseClient();
+            console.log('✅ Supabase库已加载:', supabase);
+            
+            // 初始化Supabase客户端
+            try {
+                window.supabaseClient = supabase.createClient(
+                    SUPABASE_CONFIG.url, 
+                    SUPABASE_CONFIG.key
+                );
+                console.log('✅ Supabase客户端初始化成功');
+            } catch (error) {
+                console.error('❌ Supabase客户端初始化失败:', error);
+                alert('Supabase初始化失败: ' + error.message);
+            }
         }
-    }
+    </script>
     
-    function initSupabaseClient() {
-        try {
-            console.log('正在初始化Supabase客户端...');
-            
-            const SUPABASE_URL = 'https://gbsqrtaooovsxnwftkbk.supabase.co';
-            const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdic3FydGFvb292c3hud2Z0a2JrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ3NjM3ODcsImV4cCI6MjA4MDMzOTc4N30.FKUrAR1qr5bSNEJMomU24aYFDK-fep3eNjZY1n8QgN4';
-            
-            // 重要：使用 window.supabase.createClient
-            window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-            
-            console.log('✅ Supabase客户端初始化成功');
-            
-        } catch (error) {
-            console.error('Supabase客户端初始化失败:', error);
-        }
-    }
-    
-    // 页面加载后初始化
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log('DOM加载完成');
-        checkAndInitSupabase();
-    });
-</script>
-
-<!-- 保持原有的script.js引用 -->
-<script src="supabase.min.js"></script>
-
-
+    <script src="script.js"></script>
 </body>
 </html>

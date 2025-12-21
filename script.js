@@ -1,7 +1,5 @@
 // script.js - 货品管理账本专业版主逻辑
 
-// script.js - 货品管理账本专业版主逻辑
-
 // ========== 全局变量和初始化 ==========
 let currentRecords = [];
 let allGoodsRecords = [];
@@ -21,122 +19,69 @@ let selectedGoodsId = null;
 let isUpdateMode = false;
 let goodsTemplates = {};
 
-// 等待页面完全加载
-window.addEventListener('load', function() {
-    console.log('========== 应用启动 ==========');
-    console.log('检查Supabase客户端:', window.supabaseClient ? '✅ 已连接' : '❌ 未连接');
-    
-    // 获取Supabase客户端
-    supabase = window.supabaseClient;
-    
-    // 如果Supabase未连接，显示提示但不阻止应用
-    if (!supabase) {
-        console.warn('Supabase未连接，使用本地模式');
-        showMessage('⚠️ 数据库未连接，使用本地模式', 'warning', 5000);
+// 检查Supabase是否可用
+function checkSupabase() {
+    if (!window.supabaseClient) {
+        console.error('❌ Supabase客户端未定义');
+        showMessage('❌ 数据库连接失败，请刷新页面重试', 'error');
+        return false;
     }
     
-    // 初始化应用
-    initApp();
+    if (typeof window.supabaseClient.from !== 'function') {
+        console.error('❌ Supabase客户端缺少from方法');
+        console.error('supabaseClient对象:', window.supabaseClient);
+        showMessage('❌ 数据库连接异常，请检查Supabase配置', 'error');
+        return false;
+    }
+    
+    return true;
+}
+
+// 等待DOM加载完成后初始化
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM加载完成，开始初始化应用...');
+    console.log('检查Supabase客户端:', window.supabaseClient ? '存在' : '不存在');
+    
+    if (!checkSupabase()) {
+        return;
+    }
+    
+    supabase = window.supabaseClient;
+    console.log('Supabase客户端:', supabase);
+    
+    try {
+        // 初始化日期选择器
+        initDatePickers();
+        
+        // 初始化事件监听
+        initEventListeners();
+        
+        // 初始化表单计算
+        initFormCalculations();
+        
+        // 加载现有记录
+        loadAllRecords();
+        
+        // 加载货号模板
+        loadGoodsTemplates();
+        
+        // 更新最后同步时间
+        updateLastSyncTime();
+        
+        // 设置自动刷新（每60秒）
+        setInterval(loadAllRecords, 60000);
+        
+        // 检查URL参数
+        checkUrlParams();
+        
+        console.log('✅ 应用初始化完成');
+        
+    } catch (error) {
+        console.error('❌ 应用初始化错误:', error);
+        showMessage('❌ 应用初始化失败: ' + error.message, 'error');
+    }
 });
 
-// 保持你原来的initApp函数完全不变
-function initApp() {
-    // 完全保持你原来的代码
-    initDatePickers();
-    initEventListeners();
-    initFormCalculations();
-    loadAllRecords();
-    loadGoodsTemplates();
-    updateLastSyncTime();
-    setInterval(loadAllRecords, 60000);
-    checkUrlParams();
-    
-    console.log('✅ 应用初始化完成');
-}
-// ✅ 从这开始，后面所有函数都保持你原来的代码
-// initDatePickers, initEventListeners, initFormCalculations等都不需要修改
-// 利润计算、总价计算、状态变化处理等所有业务逻辑都保持原样
-// 无数据库的初始化（当Supabase连接失败时）
-function initApplicationWithoutDB() {
-    console.log('开始无数据库初始化...');
-    
-    // 仍然可以初始化的功能
-    initDatePickers();
-    initEventListeners();
-    initFormCalculations();
-    loadGoodsTemplates();
-    checkUrlParams();
-    
-    // 禁用需要数据库的功能
-    const submitBtn = document.getElementById('submitBtn');
-    if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<i class="fas fa-ban"></i> 数据库未连接';
-        submitBtn.title = '数据库连接失败，无法提交数据';
-    }
-    
-    const refreshBtn = document.getElementById('refreshBtn');
-    if (refreshBtn) {
-        refreshBtn.disabled = true;
-        refreshBtn.innerHTML = '<i class="fas fa-ban"></i> 刷新';
-        refreshBtn.title = '数据库连接失败，无法刷新数据';
-    }
-    
-    console.log('✅ 无数据库初始化完成（部分功能受限）');
-}
-
-// 显示连接错误信息
-function showConnectionError() {
-    const errorHtml = `
-        <div style="
-            background: #fff3cd;
-            border: 1px solid #ffeaa7;
-            border-radius: 8px;
-            padding: 15px;
-            margin: 15px 0;
-            color: #856404;
-            font-size: 14px;
-        ">
-            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
-                <i class="fas fa-exclamation-triangle" style="font-size: 18px;"></i>
-                <strong>数据库连接失败</strong>
-            </div>
-            <p style="margin: 5px 0;">可能的原因：</p>
-            <ul style="margin: 5px 0; padding-left: 20px;">
-                <li>网络连接问题</li>
-                <li>浏览器安全设置阻止了外部资源</li>
-                <li>Supabase服务暂时不可用</li>
-            </ul>
-            <p style="margin: 10px 0 5px 0;">
-                <button onclick="location.reload()" style="
-                    padding: 8px 16px;
-                    background: #f0ad4e;
-                    color: white;
-                    border: none;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    font-size: 14px;
-                ">
-                    <i class="fas fa-redo"></i> 刷新页面
-                </button>
-            </p>
-        </div>
-    `;
-    
-    const container = document.querySelector('.container');
-    if (container) {
-        const roleSwitch = document.querySelector('.role-switch');
-        if (roleSwitch && roleSwitch.nextSibling) {
-            roleSwitch.insertAdjacentHTML('afterend', errorHtml);
-        }
-    }
-    
-    showMessage('⚠️ 数据库连接失败，提交和刷新功能不可用', 'warning', 0);
-}
-
-// ✅ 以下完全保持你原来的所有函数代码
-// initDatePickers, initEventListeners, initFormCalculations 等所有函数都不需要修改
-// 利润计算、总价计算等所有业务逻辑都保持不变
 // 初始化日期选择器
 function initDatePickers() {
     if (typeof flatpickr !== 'undefined') {
@@ -611,26 +556,40 @@ function collectFormData() {
     };
 }
 
-// 提交到Supabase - 只在开头添加连接检查
+// 提交到Supabase - 修复网络问题
 async function submitToSupabase(formData) {
-    // ✅ 添加：检查Supabase连接
     if (!supabase) {
-        showMessage('❌ 数据库未连接，无法提交', 'error');
+        showMessage('❌ 数据库连接未初始化', 'error');
         return false;
     }
     
-    // ✅ 完全保持你原来的提交代码
     try {
+        console.log('正在提交数据到Supabase...');
+        
         const { data, error } = await supabase
             .from('goods_records')
             .insert([formData])
             .select();
         
         if (error) {
-            throw error;
+            console.error('❌ Supabase提交错误详情:', error);
+            
+            if (error.code === '42501') {
+                showMessage('❌ 权限不足：请在Supabase中关闭RLS或添加插入权限', 'error');
+            } else if (error.code === '23502') {
+                showMessage('❌ 必填字段缺失', 'error');
+            } else if (error.code === '42703') {
+                showMessage('❌ 字段名错误：请检查数据库表结构', 'error');
+            } else if (error.message.includes('fetch')) {
+                showMessage('❌ 网络请求失败：请检查网络连接和CORS设置', 'error');
+            } else {
+                showMessage('❌ 提交失败: ' + error.message, 'error');
+            }
+            
+            return false;
         }
         
-        console.log('数据提交成功:', data);
+        console.log('✅ 数据提交成功:', data);
         
         if (data && data[0]) {
             allGoodsRecords.unshift(data[0]);
@@ -639,19 +598,18 @@ async function submitToSupabase(formData) {
         return true;
         
     } catch (error) {
-        console.error('Supabase提交错误:', error);
+        console.error('❌ 提交异常:', error);
         
-        if (error.message.includes('JWT')) {
-            showMessage('❌ 数据库认证失败，请检查API密钥配置', 'error');
-        } else if (error.message.includes('network')) {
-            showMessage('❌ 网络连接失败，请检查网络设置', 'error');
+        if (error.message.includes('fetch') || error.message.includes('Network')) {
+            showMessage('❌ 网络错误：请检查网络连接，或可能被浏览器安全策略阻止', 'error');
         } else {
-            showMessage('❌ 提交失败: ' + error.message, 'error');
+            showMessage('❌ 提交异常: ' + error.message, 'error');
         }
         
         return false;
     }
 }
+
 // 保存货号模板到本地
 function saveGoodsTemplateToLocal(formData) {
     if (!formData.goods_id) return;
@@ -747,38 +705,17 @@ function switchRole(role) {
     }
 }
 
+// ========== 数据加载与筛选 ==========
 // 加载所有记录
 async function loadAllRecords() {
     try {
         showLoading(true);
         
-        // 检查Supabase连接
         if (!supabase) {
-            console.log('Supabase未连接，使用本地数据');
-            
-            // 使用本地存储的数据或空数组
-            allGoodsRecords = JSON.parse(localStorage.getItem('local_goods_records') || '[]');
-            currentRecords = [...allGoodsRecords];
-            
-            // 更新UI
-            applyFilters();
-            updateStats();
-            loadMonthlyStats();
-            updateLastSyncTime();
-            
-            // 确保displayRecords函数存在
-            if (typeof displayRecords === 'function') {
-                displayRecords(currentRecords);
-            } else {
-                console.error('displayRecords函数不存在！');
-                // 临时处理：更新记录列表
-                updateRecordsDisplay();
-            }
-            
+            showMessage('❌ 数据库连接未初始化', 'error');
             return;
         }
         
-        // 原有的数据库代码
         const { data, error } = await supabase
             .from('goods_records')
             .select('*')
@@ -797,24 +734,18 @@ async function loadAllRecords() {
         updateGoodsTemplatesFromRecords();
         updateLastSyncTime();
         
-        if (typeof displayRecords === 'function') {
-            displayRecords(currentRecords);
-        }
-        
         showMessage(`✅ 已加载 ${allGoodsRecords.length} 条记录`, 'success');
         
     } catch (error) {
         console.error('加载记录错误:', error);
         showMessage('❌ 加载记录失败: ' + error.message, 'error');
-        
-        // 错误时显示空状态
-        if (typeof displayRecords === 'function') {
-            displayRecords([]);
-        }
+        displayRecords([]);
     } finally {
         showLoading(false);
     }
-}// 从记录更新货号模板
+}
+
+// 从记录更新货号模板
 function updateGoodsTemplatesFromRecords() {
     allGoodsRecords.forEach(record => {
         if (!record.goods_id) return;
@@ -1861,145 +1792,3 @@ function formatDateTime(isoString) {
 
 // 页面加载完成的初始化
 console.log('货品管理账本专业版已加载');
-// 如果原代码中缺少这些函数，临时添加
-// 创建单个记录项的HTML
-function createRecordItemHTML(record, compact = false) {
-    const profit = record.profit !== null ? parseFloat(record.profit) : null;
-    const profitClass = profit !== null ? 
-        (profit > 0 ? 'positive' : profit < 0 ? 'negative' : '') : '';
-    
-    const statusClass = record.status.includes('卖出') ? 'sold' : 
-                       record.status.includes('退回') ? 'returned' :
-                       record.status.includes('下架') ? 'offShelf' : 'unsold';
-    
-    const actualIncomeText = record.actual_income !== null ? 
-        `<div class="record-field">
-            <span class="record-label">实际收入:</span>
-            <span class="record-value">${record.actual_income.toFixed(2)} 元</span>
-        </div>` : '';
-    
-    const profitText = profit !== null ? 
-        `<div class="record-field">
-            <span class="record-label">利润:</span>
-            <span class="record-profit ${profitClass}">${profit.toFixed(2)} 元</span>
-        </div>` : '';
-    
-    const remarkText = record.remark ? 
-        `<div class="record-field">
-            <span class="record-label">备注:</span>
-            <span class="record-value">${record.remark}</span>
-        </div>` : '';
-    
-    const compactClass = compact ? 'compact' : '';
-    
-    return `
-        <div class="record-item ${statusClass} ${compactClass}">
-            <div class="record-header">
-                <div class="record-title">
-                    <i class="fas fa-barcode"></i> ${record.goods_id}
-                    ${record.goods_name && record.goods_name !== record.goods_id ? 
-                        `<span class="record-subtitle">${record.goods_name}</span>` : ''}
-                </div>
-                <div class="record-status ${statusClass}">${record.status}</div>
-            </div>
-            
-            <div class="record-body">
-                <div class="record-field">
-                    <span class="record-label">成本:</span>
-                    <span class="record-value">
-                        ${record.unit_price.toFixed(2)} 元 × ${record.quantity} = ${record.total_cost.toFixed(2)} 元
-                    </span>
-                </div>
-                
-                <div class="record-field">
-                    <span class="record-label">运费:</span>
-                    <span class="record-value">
-                        ${record.shipping_fee.toFixed(2)} 元
-                        ${record.shipping_note ? `(${record.shipping_note})` : ''}
-                    </span>
-                </div>
-                
-                ${actualIncomeText}
-                ${profitText}
-                ${remarkText}
-            </div>
-            
-            <div class="record-footer">
-                <div class="record-info">
-                    <span><i class="fas fa-user"></i> ${record.submitter}</span>
-                    <span><i class="fas fa-clock"></i> ${formatDateTime(record.created_at)}</span>
-                </div>
-                <div class="record-actions">
-                    <button class="record-action-btn view-detail-btn" data-goods-id="${record.goods_id}">
-                        <i class="fas fa-info-circle"></i> 详情
-                    </button>
-                    <button class="record-action-btn update-btn" data-record-id="${record.id}">
-                        <i class="fas fa-edit"></i> 更新
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
-}
-// ========== 显示记录函数 ==========
-function displayRecords(records) {
-    const recordsList = document.getElementById('recordsList');
-    const emptyMessage = document.getElementById('emptyMessage');
-    
-    if (!recordsList) return;
-    
-    if (!records || records.length === 0) {
-        recordsList.innerHTML = '';
-        if (emptyMessage) emptyMessage.style.display = 'block';
-        return;
-    }
-    
-    if (emptyMessage) emptyMessage.style.display = 'none';
-    
-    let html = '';
-    
-    // 按日期分组
-    const groupedByDate = {};
-    records.forEach(record => {
-        const date = new Date(record.created_at).toLocaleDateString('zh-CN');
-        if (!groupedByDate[date]) {
-            groupedByDate[date] = [];
-        }
-        groupedByDate[date].push(record);
-    });
-    
-    // 按日期倒序
-    const sortedDates = Object.keys(groupedByDate).sort((a, b) => 
-        new Date(b) - new Date(a)
-    );
-    
-    sortedDates.forEach(date => {
-        html += `
-            <div class="date-group">
-                <div class="date-header">
-                    <i class="fas fa-calendar-day"></i> ${date}
-                    <span class="date-count">${groupedByDate[date].length} 条记录</span>
-                </div>
-                <div class="date-records">
-        `;
-        
-        groupedByDate[date].forEach(record => {
-            html += createRecordItemHTML(record);
-        });
-        
-        html += `
-                </div>
-            </div>
-        `;
-    });
-    
-    recordsList.innerHTML = html;
-    
-    // 添加查看详情事件
-    document.querySelectorAll('.view-detail-btn').forEach(btn => {
-        btn.addEventListener('click', function() {
-            const goodsId = this.dataset.goodsId;
-            showGoodsDetailModal(goodsId);
-        });
-    });
-}
