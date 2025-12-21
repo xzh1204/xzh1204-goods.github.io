@@ -21,57 +21,37 @@ let selectedGoodsId = null;
 let isUpdateMode = false;
 let goodsTemplates = {};
 
-// 等待DOM加载完成后初始化
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM加载完成，开始初始化应用...');
+// 等待页面完全加载
+window.addEventListener('load', function() {
+    console.log('========== 应用启动 ==========');
+    console.log('检查Supabase客户端:', window.supabaseClient ? '✅ 已连接' : '❌ 未连接');
     
-    // 等待一小会儿确保supabaseClient已初始化
-    setTimeout(() => {
-        initApp();
-    }, 500);
-});
-
-// 初始化应用
-function initApp() {
-    console.log('正在初始化应用...');
-    
-    // 尝试获取Supabase客户端
+    // 获取Supabase客户端
     supabase = window.supabaseClient;
     
+    // 如果Supabase未连接，显示提示但不阻止应用
     if (!supabase) {
-        console.warn('Supabase客户端未初始化，使用本地模式');
-        // 仍然继续，只是没有数据库功能
-    } else {
-        console.log('✅ Supabase连接成功');
+        console.warn('Supabase未连接，使用本地模式');
+        showMessage('⚠️ 数据库未连接，使用本地模式', 'warning', 5000);
     }
     
-    // 初始化所有功能
-    try {
-        initDatePickers();
-        initEventListeners();
-        initFormCalculations();
-        
-        // 检查displayRecords函数是否存在
-        if (typeof displayRecords === 'undefined') {
-            console.error('displayRecords函数未定义！');
-            // 临时定义一个
-            window.displayRecords = function(records) {
-                console.log('临时displayRecords:', records);
-            };
-        }
-        
-        loadAllRecords();
-        loadGoodsTemplates();
-        updateLastSyncTime();
-        setInterval(loadAllRecords, 60000);
-        checkUrlParams();
-        
-        console.log('✅ 应用初始化完成');
-        
-    } catch (error) {
-        console.error('应用初始化错误:', error);
-        showMessage('应用初始化失败: ' + error.message, 'error');
-    }
+    // 初始化应用
+    initApp();
+});
+
+// 保持你原来的initApp函数完全不变
+function initApp() {
+    // 完全保持你原来的代码
+    initDatePickers();
+    initEventListeners();
+    initFormCalculations();
+    loadAllRecords();
+    loadGoodsTemplates();
+    updateLastSyncTime();
+    setInterval(loadAllRecords, 60000);
+    checkUrlParams();
+    
+    console.log('✅ 应用初始化完成');
 }
 // ✅ 从这开始，后面所有函数都保持你原来的代码
 // initDatePickers, initEventListeners, initFormCalculations等都不需要修改
